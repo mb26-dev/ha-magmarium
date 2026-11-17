@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.0b9 - 2026-11-17
+
+- Wikipedia links of volcanoes with accents or special characters in the article title work again (e.g. Volcán de Fuego, Bárðarbunga, Eyjafjallajökull): the title was encoded twice
+- Checked: all 1,422 linked article titles exist on Wikipedia and open correctly
+
 ## 0.1.0b8 - 2026-11-17
 
 - Ash SIGMETs are no longer counted twice: the forecast position that a SIGMET carries for the end of its validity is now part of that SIGMET instead of a second one
