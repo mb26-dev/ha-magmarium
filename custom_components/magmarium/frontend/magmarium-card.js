@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.0b5";
+const VERSION = "0.1.0b6";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -55,6 +55,8 @@ const MAX_EARTH_PIXELS = 1.6e6;
 const HOUR = 3600 * 1000;
 const REPLAY_HOURS_PER_SECOND = 12;
 const OFFICIAL_NAMES = { usgs: "USGS", imo: "Icelandic Met Office", jma: "Japan Meteorological Agency" };
+const CAM_SOURCES = { usgs: "USGS", geonet: "GeoNet", jma: "JMA", magma: "MAGMA Indonesia" };
+const CAM_REFRESH_MS = 5 * 60 * 1000;
 
 const ICONS = {
   plus: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
@@ -220,6 +222,12 @@ const STYLE = `
   .links { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; }
   .links a { color: #ffb965; text-decoration: none; }
   .links a:hover { text-decoration: underline; }
+  .cam { margin: 8px 0 4px; border-radius: 8px; overflow: hidden; position: relative; background: #000; }
+  .cam a { display: block; color: #fff; text-decoration: none; }
+  .cam img { display: block; width: 100%; height: auto; max-height: 200px; object-fit: cover; }
+  .cam .tag { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 8px 5px; font-size: 10.5px;
+    background: linear-gradient(transparent, rgba(0,0,0,.8)); display: flex; justify-content: space-between; gap: 6px; }
+  .cam .live { color: #ff6b5a; font-weight: 700; letter-spacing: .4px; }
   .msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 13px; opacity: .8; pointer-events: none; text-align: center; }
   @media (max-width: 520px) {
     .info { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: 58%; }
@@ -251,6 +259,7 @@ class MagmariumCard extends HTMLElement {
       ash_areas: true,
       quakes: true,
       replay: true,
+      cams: true,
       labels: true,
       ...(config || {}),
     };
@@ -797,7 +806,7 @@ class MagmariumCard extends HTMLElement {
     const bad = Object.entries(src).filter(([k, s]) => s.enabled && s.error && k !== "catalog");
     const updated = this._data?.updated ? rel(new Date(this._data.updated * 1000).toISOString()) : "";
     if (bad.length) {
-      const FEED_NAMES = { wind: "Wind data", usgs: "USGS", imo: "IMO", jma: "JMA", sigmet: "SIGMETs", quakes: "Earthquakes", wiki: "Wikipedia" };
+      const FEED_NAMES = { wind: "Wind data", usgs: "USGS", imo: "IMO", jma: "JMA", sigmet: "SIGMETs", quakes: "Earthquakes", wiki: "Wikipedia", cams: "Cameras" };
       const names = bad.map(([k]) => (k.startsWith("magma") ? "MAGMA" : FEED_NAMES[k] || "Weekly report"));
       this._legendSt.textContent = `${[...new Set(names)].join(", ")} not reachable · last data shown`;
       this._legendSt.classList.add("bad");
@@ -1054,6 +1063,7 @@ class MagmariumCard extends HTMLElement {
     if (sel.kind !== "volcano") {
       parts.push(`<div class="line"><span class="ic">⛰</span><span class="tx">${v.elev != null ? `${fmtInt(v.elev)} m` : "Elevation unknown"}${dist != null ? ` · ${fmtInt(Math.round(dist))} km from home` : ""}</span></div>`);
       parts.push(`<div class="muted">No current activity report for this volcano.</div>`);
+      parts.push(this._camHtml(v.number ? `gvp:${v.number}` : null));
       const cl = [`<a href="${esc(wikiUrl(v.wiki, v.name))}" target="_blank" rel="noopener">Wikipedia</a>`];
       if (v.number) cl.push(`<a href="https://volcano.si.edu/volcano.cfm?vn=${encodeURIComponent(v.number)}" target="_blank" rel="noopener">Global Volcanism Program</a>`);
       parts.push(`<div class="links">${cl.join("")}</div>`);
@@ -1108,6 +1118,7 @@ class MagmariumCard extends HTMLElement {
       const used = v.ash && v.ash.toward_deg == null ? " · used for the plume" : "";
       parts.push(`<div class="line"><span class="ic">💨</span><span class="tx">Wind at ${w.alt_km} km (${w.level_hpa} hPa): ${bits.join(", ")}${used}<div class="muted">Forecast drift shown dashed · simulation from Open-Meteo winds, not an official ash forecast</div></span></div>`);
     }
+    parts.push(this._camHtml(v.id));
     const meta = [];
     if (v.elev != null) meta.push(`${fmtInt(v.elev)} m`);
     if (dist != null) meta.push(`${fmtInt(Math.round(dist))} km from home`);
@@ -1138,6 +1149,26 @@ class MagmariumCard extends HTMLElement {
       this._selected = null;
       this._renderInfo();
     });
+  }
+
+  /** official live camera: the newest image of the first camera, links to the others */
+  _camHtml(id) {
+    if (!id || this._config.cams === false) return "";
+    const cams = (this._data?.cams || {})[id];
+    if (!cams || !cams.length) return "";
+    const live = cams.find((c) => c[2]);
+    const parts = [];
+    if (live) {
+      const [src, name, img, page] = live;
+      const url = `${img}${img.includes("?") ? "&" : "?"}t=${Math.floor(Date.now() / CAM_REFRESH_MS)}`;
+      parts.push(`<div class="cam"><a href="${esc(page)}" target="_blank" rel="noopener" title="Open the camera page"><img src="${esc(url)}" alt="${esc(name)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.cam').remove()"><span class="tag"><span><span class="live">● LIVE</span> ${esc(name)}</span><span>${esc(CAM_SOURCES[src] || src)}</span></span></a></div>`);
+    }
+    const others = cams.filter((c) => c !== live);
+    if (others.length) {
+      const links = others.map(([src, name, , page]) => `<a href="${esc(page)}" target="_blank" rel="noopener">${esc(src === "jma" || src === "magma" ? `${CAM_SOURCES[src]}: ${name}` : name)}</a>`);
+      parts.push(`<div class="line"><span class="ic">📷</span><span class="tx">${live ? "More cameras" : "Live cameras"}<div class="links" style="margin-top:3px">${links.join("")}</div></span></div>`);
+    }
+    return parts.join("");
   }
 
   _infoShell(title, where, body) {
@@ -1721,6 +1752,7 @@ const EDITOR_SCHEMA = [
       { name: "ash_areas", selector: { boolean: {} } },
       { name: "quakes", selector: { boolean: {} } },
       { name: "replay", selector: { boolean: {} } },
+      { name: "cams", selector: { boolean: {} } },
     ],
   },
 ];
@@ -1738,6 +1770,7 @@ const EDITOR_LABELS = {
   ash_areas: "Official ash areas (SIGMET)",
   quakes: "Earthquakes",
   replay: "Replay button (90 days)",
+  cams: "Live camera images",
 };
 
 class MagmariumCardEditor extends HTMLElement {
@@ -1776,6 +1809,7 @@ class MagmariumCardEditor extends HTMLElement {
       ash_areas: true,
       quakes: true,
       replay: true,
+      cams: true,
       ...this._config,
       center: Array.isArray(this._config.center) ? "home" : this._config.center || "home",
     };
