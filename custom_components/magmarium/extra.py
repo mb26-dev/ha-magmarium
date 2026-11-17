@@ -16,7 +16,7 @@ import json
 import math
 import re
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 from .parsing import haversine_km, normalize_name
 
@@ -352,7 +352,8 @@ def parse_wikidata(text: str) -> dict[str, list[str]]:
         url = str((b.get("article") or {}).get("value") or "")
         if not gvp.isdigit() or "/wiki/" not in url:
             continue
-        title = url.split("/wiki/", 1)[1]
+        # Wikidata gives the article URL percent-encoded: keep the plain title
+        title = unquote(url.split("/wiki/", 1)[1])
         out.setdefault(gvp, [])
         if title not in out[gvp]:
             out[gvp].append(title)
@@ -361,10 +362,19 @@ def parse_wikidata(text: str) -> dict[str, list[str]]:
     return out
 
 
+def wiki_url(title: str | None) -> str | None:
+    """Link to an English Wikipedia article, encoded exactly once."""
+    if not title:
+        return None
+    return "https://en.wikipedia.org/wiki/" + quote(title.replace(" ", "_"), safe="_()'!,-.:")
+
+
 def choose_wiki(titles: list[str] | None, *names: str | None) -> str | None:
     """Best English Wikipedia title for a volcano among the articles linked to its number."""
     if not titles:
         return None
+    # titles cached by older versions are still percent-encoded
+    titles = [unquote(t) if "%" in t else t for t in titles]
     if len(titles) == 1:
         return titles[0]
     keys = [normalize_name(n) for n in names if n]

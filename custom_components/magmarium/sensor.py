@@ -15,6 +15,7 @@ from homeassistant.util import slugify
 from .const import CONF_WATCHED, DEFAULT_WATCHED, DOMAIN, LEVEL_KEYS
 from .coordinator import MagmariumCoordinator
 from .entity import MagmariumEntity
+from .extra import wiki_url
 from .model import nearest
 from .parsing import haversine_km
 
@@ -393,7 +394,7 @@ class VolcanoSensor(MagmariumEntity, SensorEntity):
             "url": notice.get("url") or vol.get("report_url"),
             "official_alert": (vol.get("official") or {}).get("alert"),
             "quakes_7d": vol.get("quakes_7d") or 0,
-            "wikipedia": f"https://en.wikipedia.org/wiki/{vol['wiki']}" if vol.get("wiki") else None,
+            "wikipedia": wiki_url(vol.get("wiki")),
             "camera_image": next((c["img"] for c in vol.get("cams") or [] if c.get("img")), None),
             "cameras": [c["page"] for c in vol.get("cams") or []],
             "elevation_m": vol.get("elevation"),
