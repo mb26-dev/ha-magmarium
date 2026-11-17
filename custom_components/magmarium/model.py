@@ -10,6 +10,7 @@ from .parsing import (
     analyse_vona_text,
     build_index,
     fallback_row,
+    haversine_km,
     match_catalog,
     normalize_name,
 )
@@ -38,10 +39,33 @@ class _Builder:
     def __init__(self, catalog: list[list[Any]]) -> None:
         self.catalog = catalog
         self.index = build_index(catalog)
+        self.by_number = {row[0]: row for row in catalog if row and row[0]}
         self.volcanoes: dict[str, dict[str, Any]] = {}
 
-    def resolve(self, name: str, country: str, lat: float | None = None, lon: float | None = None) -> dict[str, Any]:
-        row = match_catalog(name, country, self.index) if self.index else None
+    def row_for_official(self, o: dict[str, Any]) -> list[Any] | None:
+        """Catalogue row of an official report: by volcano number, position or name."""
+        number = o.get("number")
+        if number and number in self.by_number:
+            return self.by_number[number]
+        lat, lon = o.get("lat"), o.get("lon")
+        if lat is not None and lon is not None:
+            best, best_d = None, 25.0
+            for row in self.catalog:
+                if abs(row[3] - lat) > 0.4:
+                    continue
+                d = haversine_km(lat, lon, row[3], row[4])
+                if d < best_d:
+                    best, best_d = row, d
+            if best is not None:
+                return best
+        return match_catalog(o.get("name") or "", o.get("country") or "", self.index) if self.index else None
+
+    def existing(self, row: list[Any]) -> dict[str, Any] | None:
+        return self.volcanoes.get(f"gvp:{row[0]}") if row and row[0] else None
+
+    def resolve(self, name: str, country: str, lat: float | None = None, lon: float | None = None, row: list[Any] | None = None) -> dict[str, Any]:
+        if row is None:
+            row = match_catalog(name, country, self.index) if self.index else None
         if row is None and country.lower() == "indonesia":
             row = fallback_row(name)
         if row is not None and row[0]:
@@ -73,6 +97,8 @@ class _Builder:
                 "notice": None,
                 "weekly": None,
                 "report_url": None,
+                "official": None,
+                "sigmets": [],
                 "sources": [],
             }
             self.volcanoes[key] = vol
@@ -94,8 +120,10 @@ def build_volcanoes(
     now: datetime,
     ash_live_hours: float,
     eruption_hours: float,
+    official: list[dict[str, Any]] | None = None,
+    sigmets: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Return {"volcanoes": [...], "catalog": [...], "latest_vona": {...} | None}."""
+    """Return {"volcanoes": [...], "catalog": [...], "latest_vona": {...} | None, "sigmets": [...]}."""
     b = _Builder(catalog)
 
     # ---- MAGMA ground alert levels (Level I-IV)
@@ -216,6 +244,66 @@ def build_volcanoes(
                 "period": w.get("period"),
             }
 
+    # ---- official alert levels outside Indonesia (USGS, Icelandic Met Office, JMA)
+    for o in official or []:
+        row = b.row_for_official(o)
+        vol = b.existing(row) if row else None
+        if vol is None and int(o.get("level") or 0) < 2:
+            continue  # normal and not reported anywhere else: stays a quiet background volcano
+        if vol is None:
+            vol = b.resolve(o.get("name") or "", o.get("country") or "", o.get("lat"), o.get("lon"), row=row)
+        _add_source(vol, o["source"])
+        level = int(o.get("level") or 0)
+        # several official sources for one volcano are rare; the higher level wins
+        if vol.get("official") and level < vol["level"]:
+            continue
+        vol["level"] = level
+        if o.get("color"):
+            vol["aviation_color"] = o["color"]
+        vol["alert"] = o.get("alert")
+        vol["official"] = {
+            "source": o["source"],
+            "alert": o.get("alert"),
+            "time": o.get("time"),
+            "url": o.get("url"),
+        }
+        if vol["local_name"] is None and o.get("name") and normalize_name(o["name"]) != normalize_name(vol["name"]):
+            vol["local_name"] = o["name"]
+
+    # ---- volcanic ash SIGMETs: official ash areas, linked to their volcano when named
+    linked: list[dict[str, Any]] = []
+    for s in sigmets or []:
+        s = dict(s)
+        name = s.get("volcano")
+        row = match_catalog(name, "", b.index) if (name and b.index) else None
+        if row is None and name:
+            row = fallback_row(name)
+        vol = None
+        if row is not None:
+            vol = b.existing(row) or b.resolve(name, row[2] or "", row=row)
+        if vol is not None:
+            s["volcano_id"] = vol["id"]
+            _add_source(vol, "sigmet")
+            vol["sigmets"].append({"fir": s.get("fir"), "to": s.get("to"), "top_m": s.get("top_m")})
+            if vol["ash"] is None or vol["ash"].get("source") == "weekly":
+                vol["ash"] = {
+                    "source": "sigmet",
+                    "time": s.get("from"),
+                    "age_min": None,
+                    "top_m": s.get("top_m"),
+                    "above_summit_m": None,
+                    "toward": None,
+                    "toward_deg": s.get("toward_deg"),
+                    "color": None,
+                    "intensity": None,
+                    "strength": 0.8,
+                }
+            if vol["eruption"] is None:
+                vol["eruption"] = {"time": s.get("from"), "source": "sigmet", "age_min": None}
+            if vol["level"] < 2:
+                vol["level"] = 2
+        linked.append(s)
+
     # ---- finish
     out: list[dict[str, Any]] = []
     for vol in b.volcanoes.values():
@@ -233,7 +321,7 @@ def build_volcanoes(
         for r in catalog
         if r[0] not in used
     ]
-    return {"volcanoes": out, "catalog": background, "latest_vona": latest_vona}
+    return {"volcanoes": out, "catalog": background, "latest_vona": latest_vona, "sigmets": linked}
 
 
 def nearest(volcanoes: list[dict[str, Any]], lat: float, lon: float, min_level: int = 2) -> tuple[dict[str, Any], float] | None:
@@ -251,3 +339,43 @@ def nearest(volcanoes: list[dict[str, Any]], lat: float, lon: float, min_level: 
 
 def recent_cutoff(now: datetime, days: int) -> datetime:
     return now - timedelta(days=days)
+
+
+def build_history(
+    catalog: list[list[Any]],
+    vonas: list[dict[str, Any]],
+    now: datetime,
+    days: int,
+) -> list[dict[str, Any]]:
+    """VONA events of the last days for the replay in the card, oldest first."""
+    b = _Builder(catalog)
+    cutoff = now - timedelta(days=days)
+    events: list[dict[str, Any]] = []
+    for v in vonas:
+        if v.get("exercise"):
+            continue
+        issued = _parse_dt(v.get("issued"))
+        if issued is None or issued < cutoff or issued > now + timedelta(hours=1):
+            continue
+        vol = b.resolve(v["name"], "Indonesia")
+        if vol["lat"] is None:
+            continue
+        info = analyse_vona_text(v.get("text", ""))
+        events.append({
+            "t": issued.isoformat(),
+            "id": vol["id"],
+            "name": v["name"],
+            "lat": vol["lat"],
+            "lon": vol["lon"],
+            "elev": vol.get("elevation"),
+            "color": v.get("color"),
+            "eruption": bool(info["eruption"]),
+            "ash": bool(info["ash"]),
+            "top_m": info["top_m"],
+            "above_summit_m": info["above_summit_m"],
+            "toward_deg": info["toward_deg"],
+            "ash_color": info["ash_color"],
+            "intensity": info["intensity"],
+        })
+    events.sort(key=lambda e: e["t"])
+    return events
