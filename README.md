@@ -34,7 +34,8 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 - Warning level volcanoes pulse
 - All ~1,200 known Holocene volcanoes as small background cones (switchable)
 - Tap a volcano for its alert level, aviation colour code, eruption time, ash cloud height and drift, the full notice text and links to the official reports
-- Filter chips: all, erupting, ash clouds, elevated; one tap to Indonesia
+- Filter chips: all, erupting, ash clouds, elevated
+- **Region buttons:** one tap turns the globe to Indonesia, Japan, Iceland, the Andes and twelve more volcanic regions, each with its number of active volcanoes
 - Drag to turn, mouse wheel or pinch to zoom, double tap to zoom in, optional slow rotation
 - Works on phones and wall tablets, pauses itself when it is not on screen
 
@@ -94,12 +95,44 @@ All options are optional:
 type: custom:magmarium-card
 title: Magmarium
 height: 460            # height in px
-center: home           # home, indonesia, world, ring_of_fire, japan, europe, iceland, alaska, hawaii or [lat, lon]
+center: home           # home, world, ring_of_fire, a region key (see below) or [lat, lon]
 zoom: 2.4              # 1 shows the whole globe
+regions: true          # region buttons; false hides them, a list picks and orders them
 rotate: false          # slow rotation when nobody touches the card
 show_all: true         # all known volcanoes as small background cones
 weekly_ash: true       # light ash plumes for ash reported in the weekly report
 labels: true
+```
+
+### Region buttons
+
+A second row of buttons flies the globe to a volcanic region. Each button shows how many volcanoes there are currently active, with a dot in the colour of the highest alert level; quiet regions are dimmed. Once a region is zoomed in, the quiet volcanoes are labelled too.
+
+| Key | Region |
+|---|---|
+| `indonesia` | Indonesia |
+| `philippines` | Philippines |
+| `japan` | Japan |
+| `kamchatka` | Kamchatka & Kurils |
+| `alaska` | Alaska & Aleutians |
+| `cascades` | Cascades |
+| `hawaii` | Hawaii |
+| `central_america` | Mexico & Central America |
+| `caribbean` | Caribbean |
+| `andes` | Andes |
+| `iceland` | Iceland |
+| `atlantic` | Azores & Canaries |
+| `mediterranean` | Italy & Mediterranean |
+| `east_africa` | East Africa |
+| `melanesia` | PNG & Vanuatu |
+| `new_zealand` | New Zealand & Tonga |
+
+Only some of them, in your order:
+
+```yaml
+type: custom:magmarium-card
+center: indonesia
+regions: [indonesia, philippines, japan, iceland, mediterranean]
 ```
 
 ## Alert notifications (blueprint)
