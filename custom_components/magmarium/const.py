@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "magmarium"
-VERSION = "0.1.0b2"
+VERSION = "0.1.0b3"
 
 CONF_SOURCES = "sources"
 CONF_WATCHED = "watched_volcanoes"
@@ -45,6 +45,8 @@ GVP_WEEKLY_MINUTES = 6 * 60
 CATALOG_DAYS = 30
 BACKOFF_MINUTES = 60
 SOURCE_DOWN_HOURS = 24
+# winds aloft for the ash drift simulation (Open-Meteo)
+WIND_MINUTES = 60
 
 # a VONA ash cloud is shown as a live plume for this long, fading out
 ASH_LIVE_HOURS = 4

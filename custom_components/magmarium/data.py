@@ -46,9 +46,11 @@ from .const import (
     STORAGE_VERSION,
     VERSION,
     VONA_MAX_AGE_DAYS,
+    WIND_MINUTES,
 )
 from .model import build_volcanoes
 from .parsing import parse_gvp_catalog, parse_gvp_weekly, parse_level_page, parse_vona_list
+from .wind import build_url as wind_url, parse_response as parse_wind, points_key, wind_for, wind_points
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,6 +70,7 @@ FEEDS = {
     "magma_vona": (SOURCE_MAGMA, MAGMA_VONA_MINUTES),
     "gvp_weekly": (SOURCE_GVP_WEEKLY, GVP_WEEKLY_MINUTES),
     "catalog": (None, CATALOG_DAYS * 24 * 60),
+    "wind": (None, WIND_MINUTES),
 }
 
 
@@ -88,6 +91,9 @@ class MagmariumData:
         self.vonas: list[dict[str, Any]] = []
         self.weekly: list[dict[str, Any]] = []
         self.weekly_published: str | None = None
+        # winds aloft per volcano id, and the set of places they were fetched for
+        self.wind: dict[str, dict[str, Any]] = {}
+        self.wind_key: str = ""
         # feed -> {"last_ok": ts, "last_attempt": ts, "retry_after": ts, "error": str|None, "failing_since": ts|None}
         self.feed_state: dict[str, dict[str, Any]] = {}
         self.result: dict[str, Any] = {"volcanoes": [], "catalog": [], "latest_vona": None}
@@ -112,6 +118,8 @@ class MagmariumData:
             self.vonas = stored.get("vonas") or []
             self.weekly = stored.get("weekly") or []
             self.weekly_published = stored.get("weekly_published")
+            self.wind = stored.get("wind") or {}
+            self.wind_key = stored.get("wind_key") or ""
             self.feed_state = stored.get("feeds") or {}
         await self.async_rebuild()
 
@@ -122,6 +130,8 @@ class MagmariumData:
             "vonas": self.vonas,
             "weekly": self.weekly,
             "weekly_published": self.weekly_published,
+            "wind": self.wind,
+            "wind_key": self.wind_key,
             "feeds": self.feed_state,
         })
 
@@ -193,9 +203,40 @@ class MagmariumData:
                 changed = True
             self.async_update_repairs()
             if changed:
+                await self.async_rebuild()
+            if await self._refresh_wind(now, force):
+                changed = True
+            if changed:
                 await self._async_save()
             await self.async_rebuild()
             return changed
+
+    async def _refresh_wind(self, now: float, force: bool) -> bool:
+        """Winds aloft for every volcano with ash or an eruption, hourly or when that set changes."""
+        points = wind_points(self.result.get("volcanoes") or [])
+        if not points:
+            self.wind = {}
+            self.wind_key = ""
+            return False
+        key = points_key(points)
+        st = self.feed_state.get("wind") or {}
+        if now < float(st.get("retry_after") or 0):
+            return False
+        if not force and key == self.wind_key and not self._due("wind", now):
+            return False
+        try:
+            text = await self._get(wind_url(points))
+            data = await self.hass.async_add_executor_job(json.loads, text)
+            self.wind = await self.hass.async_add_executor_job(parse_wind, data, points)
+        except FeedError as err:
+            self._fail("wind", now, str(err))
+            return False
+        except (ValueError, TypeError, KeyError, IndexError) as err:
+            self._fail("wind", now, f"unexpected content: {err}")
+            return False
+        self.wind_key = key
+        self._ok("wind", now)
+        return True
 
     async def _refresh_catalog(self) -> None:
         try:
@@ -306,7 +347,7 @@ class MagmariumData:
             "home": [self.hass.config.latitude, self.hass.config.longitude],
             "sources": self.source_status(),
             "weekly_published": self.weekly_published,
-            "volcanoes": [_card_volcano(v) for v in result["volcanoes"] if v["lat"] is not None],
+            "volcanoes": [_card_volcano(v, wind_for(v, self.wind.get(v["id"]), now)) for v in result["volcanoes"] if v["lat"] is not None],
             "catalog": result["catalog"],
         }
         raw = json.dumps(payload, separators=(",", ":")).encode()
@@ -420,7 +461,7 @@ class MagmariumData:
         return body
 
 
-def _card_volcano(v: dict[str, Any]) -> dict[str, Any]:
+def _card_volcano(v: dict[str, Any], wind: dict[str, Any] | None = None) -> dict[str, Any]:
     """Trim a volcano for the card payload."""
     out = {
         "id": v["id"],
@@ -442,6 +483,7 @@ def _card_volcano(v: dict[str, Any]) -> dict[str, Any]:
         "report": v.get("report_url"),
         "number": v.get("number"),
         "sources": v.get("sources"),
+        "wind": wind,
     }
     return out
 
