@@ -1,0 +1,327 @@
+"""Sensors for Magmarium."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import slugify
+
+from .const import CONF_WATCHED, DEFAULT_WATCHED, DOMAIN, LEVEL_KEYS
+from .coordinator import MagmariumCoordinator
+from .entity import MagmariumEntity
+from .model import nearest
+from .parsing import haversine_km
+
+MAX_LIST = 40
+
+
+def parse_watched(value: str | list | None) -> list[str]:
+    if not value:
+        return []
+    items = value if isinstance(value, list) else str(value).replace(";", ",").split(",")
+    out: list[str] = []
+    for item in items:
+        name = str(item).strip()
+        if name and name.lower() not in [o.lower() for o in out]:
+            out.append(name)
+    return out
+
+
+def _short(vol: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": vol["name"],
+        "country": vol["country"],
+        "level": vol["level"],
+        "level_key": vol["level_key"],
+        "alert": vol.get("alert"),
+        "aviation_color": vol.get("aviation_color"),
+        "erupting": vol["erupting"],
+        "ash_cloud": bool(vol.get("ash") and vol["ash"].get("source") == "vona"),
+    }
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
+    coordinator: MagmariumCoordinator = hass.data[DOMAIN][entry.entry_id]
+    options = {**entry.data, **entry.options}
+    entities: list[SensorEntity] = [
+        ElevatedSensor(coordinator, entry),
+        EruptingSensor(coordinator, entry),
+        AshCloudSensor(coordinator, entry),
+        NearestSensor(coordinator, entry),
+        LatestVonaSensor(coordinator, entry),
+        StatusSensor(coordinator, entry),
+    ]
+    for name in parse_watched(options.get(CONF_WATCHED, DEFAULT_WATCHED)):
+        entities.append(VolcanoSensor(coordinator, entry, name))
+    async_add_entities(entities)
+
+
+class ElevatedSensor(MagmariumEntity, SensorEntity):
+    """Number of volcanoes above normal level."""
+
+    _attr_translation_key = "elevated"
+    _attr_icon = "mdi:volcano"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "volcanoes"
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "elevated")
+
+    def _list(self) -> list[dict[str, Any]]:
+        return [v for v in (self.coordinator.data or {}).get("volcanoes", []) if v["level"] >= 2]
+
+    @property
+    def native_value(self) -> int:
+        return len(self._list())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        vols = self._list()
+        return {
+            "warning": len([v for v in vols if v["level"] == 4]),
+            "watch": len([v for v in vols if v["level"] == 3]),
+            "advisory": len([v for v in vols if v["level"] == 2]),
+            "volcanoes": [_short(v) for v in vols[:MAX_LIST]],
+        }
+
+
+class EruptingSensor(MagmariumEntity, SensorEntity):
+    """Volcanoes with a reported eruption (last 24 h from VONA, or the current weekly report)."""
+
+    _attr_translation_key = "erupting"
+    _attr_icon = "mdi:fire"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "volcanoes"
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "erupting")
+
+    def _list(self) -> list[dict[str, Any]]:
+        return [v for v in (self.coordinator.data or {}).get("volcanoes", []) if v["erupting"]]
+
+    @property
+    def native_value(self) -> int:
+        return len(self._list())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        vols = self._list()
+        return {
+            "live": [v["name"] for v in vols if (v.get("eruption") or {}).get("source") == "vona"],
+            "volcanoes": [
+                {**_short(v), "eruption_time": (v.get("eruption") or {}).get("time"), "source": (v.get("eruption") or {}).get("source")}
+                for v in vols[:MAX_LIST]
+            ],
+        }
+
+
+class AshCloudSensor(MagmariumEntity, SensorEntity):
+    """Ash clouds observed in the last hours (VONA)."""
+
+    _attr_translation_key = "ash_clouds"
+    _attr_icon = "mdi:weather-fog"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "clouds"
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "ash_clouds")
+
+    def _list(self) -> list[dict[str, Any]]:
+        return [
+            v for v in (self.coordinator.data or {}).get("volcanoes", [])
+            if v.get("ash") and v["ash"].get("source") == "vona"
+        ]
+
+    @property
+    def native_value(self) -> int:
+        return len(self._list())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "clouds": [
+                {
+                    "volcano": v["name"],
+                    "time": v["ash"].get("time"),
+                    "top_m": v["ash"].get("top_m"),
+                    "above_summit_m": v["ash"].get("above_summit_m"),
+                    "moving_to": v["ash"].get("toward"),
+                    "intensity": v["ash"].get("intensity"),
+                }
+                for v in self._list()
+            ],
+            "weekly_report": [
+                v["name"] for v in (self.coordinator.data or {}).get("volcanoes", [])
+                if v.get("ash") and v["ash"].get("source") == "weekly"
+            ],
+        }
+
+
+class NearestSensor(MagmariumEntity, SensorEntity):
+    """Nearest volcano with elevated activity or an eruption."""
+
+    _attr_translation_key = "nearest"
+    _attr_icon = "mdi:map-marker-radius"
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "nearest")
+
+    def _hit(self) -> tuple[dict[str, Any], float] | None:
+        return nearest(
+            (self.coordinator.data or {}).get("volcanoes", []),
+            self.hass.config.latitude,
+            self.hass.config.longitude,
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        hit = self._hit()
+        return hit[0]["name"] if hit else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        hit = self._hit()
+        if not hit:
+            return {}
+        vol, dist = hit
+        return {
+            **_short(vol),
+            "distance_km": round(dist, 1),
+            "latitude": vol["lat"],
+            "longitude": vol["lon"],
+        }
+
+
+class LatestVonaSensor(MagmariumEntity, SensorEntity):
+    """Time of the newest VONA (Volcano Observatory Notice for Aviation) from MAGMA Indonesia."""
+
+    _attr_translation_key = "latest_vona"
+    _attr_icon = "mdi:airplane-alert"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "latest_vona")
+
+    @property
+    def native_value(self) -> datetime | None:
+        latest = (self.coordinator.data or {}).get("latest_vona")
+        if not latest:
+            return None
+        return datetime.fromisoformat(latest["time"])
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        latest = (self.coordinator.data or {}).get("latest_vona") or {}
+        return {
+            "volcano": latest.get("volcano"),
+            "local_name": latest.get("local_name"),
+            "aviation_color": latest.get("color"),
+            "text": latest.get("text"),
+            "ash_cloud": latest.get("ash"),
+            "ash_top_m": latest.get("ash_top_m"),
+            "url": latest.get("url"),
+        }
+
+
+class StatusSensor(MagmariumEntity, SensorEntity):
+    """Health of the data sources."""
+
+    _attr_translation_key = "status"
+    _attr_icon = "mdi:database-check"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["ok", "degraded", "waiting"]
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "status")
+
+    @property
+    def native_value(self) -> str:
+        sources = (self.coordinator.data or {}).get("sources", {})
+        enabled = [s for s in sources.values() if s["enabled"]]
+        if not enabled or all(not s["last_ok"] for s in enabled):
+            return "waiting"
+        if any(s["error"] for s in enabled):
+            return "degraded"
+        return "ok"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self.coordinator.data or {}
+        store = self.coordinator.store
+        return {
+            "feeds": data.get("sources", {}),
+            "volcanoes": len(data.get("volcanoes", [])),
+            "catalogue": len(store.catalog),
+            "vona_cached": len(store.vonas),
+            "earth_imagery": store.earth_status(),
+        }
+
+
+class VolcanoSensor(MagmariumEntity, SensorEntity):
+    """Alert level of one watched volcano."""
+
+    _attr_translation_key = "volcano"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = list(LEVEL_KEYS.values())
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry, name: str) -> None:
+        super().__init__(coordinator, entry, f"volcano_{slugify(name)}")
+        self._name = name
+        self._attr_translation_placeholders = {"volcano": name}
+
+    def _vol(self) -> dict[str, Any] | None:
+        return self.coordinator.volcano_by_name(self._name)
+
+    @property
+    def icon(self) -> str:
+        vol = self._vol()
+        if vol and vol["erupting"]:
+            return "mdi:volcano"
+        return "mdi:volcano-outline"
+
+    @property
+    def native_value(self) -> str:
+        vol = self._vol()
+        return vol["level_key"] if vol else "unknown"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        vol = self._vol()
+        if not vol:
+            return {"volcano": self._name, "note": "No current report for this volcano"}
+        ash = vol.get("ash") or {}
+        notice = vol.get("notice") or {}
+        attrs: dict[str, Any] = {
+            "volcano": vol["name"],
+            "local_name": vol.get("local_name"),
+            "country": vol["country"],
+            "level": vol["level"],
+            "alert": vol.get("alert"),
+            "aviation_color": vol.get("aviation_color"),
+            "erupting": vol["erupting"],
+            "eruption_time": (vol.get("eruption") or {}).get("time"),
+            "ash_cloud": ash.get("source") == "vona",
+            "ash_top_m": ash.get("top_m"),
+            "ash_above_summit_m": ash.get("above_summit_m"),
+            "ash_moving_to": ash.get("toward"),
+            "ash_intensity": ash.get("intensity"),
+            "last_notice": notice.get("time"),
+            "notice_text": notice.get("text"),
+            "source": notice.get("source"),
+            "url": notice.get("url") or vol.get("report_url"),
+            "elevation_m": vol.get("elevation"),
+            "latitude": vol["lat"],
+            "longitude": vol["lon"],
+        }
+        if vol["lat"] is not None:
+            attrs["distance_km"] = round(
+                haversine_km(self.hass.config.latitude, self.hass.config.longitude, vol["lat"], vol["lon"]), 1
+            )
+        return attrs

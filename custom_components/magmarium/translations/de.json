@@ -1,0 +1,85 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Magmarium",
+        "description": "Aktive Vulkane auf einem lebendigen Globus. Wähle die Datenquellen und optional Vulkane, die beobachtet werden sollen (mit Komma getrennt, z. B. Semeru, Merapi, Krakatau). Jeder beobachtete Vulkan bekommt einen eigenen Sensor.",
+        "data": {
+          "sources": "Datenquellen",
+          "watched_volcanoes": "Beobachtete Vulkane"
+        },
+        "data_description": {
+          "sources": "MAGMA Indonesia: offizielle Warnstufen und VONA-Meldungen (Aschewolken) für Indonesien, alle 10 Minuten. Wochenbericht: weltweite Aktivität vom Smithsonian Global Volcanism Program und USGS.",
+          "watched_volcanoes": "Namen wie in den Quellen, z. B. Semeru, Merapi, Anak Krakatau, Lewotobi, Etna."
+        }
+      }
+    },
+    "error": {
+      "no_sources": "Mindestens eine Datenquelle auswählen."
+    },
+    "abort": {
+      "already_configured": "Magmarium ist bereits eingerichtet.",
+      "single_instance_allowed": "Magmarium ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Magmarium",
+        "data": {
+          "sources": "Datenquellen",
+          "watched_volcanoes": "Beobachtete Vulkane"
+        },
+        "data_description": {
+          "watched_volcanoes": "Mit Komma getrennt, z. B. Semeru, Merapi, Krakatau. Jeder bekommt einen eigenen Sensor."
+        }
+      }
+    },
+    "error": {
+      "no_sources": "Mindestens eine Datenquelle auswählen."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "elevated": {
+        "name": "Vulkane mit erhöhter Aktivität"
+      },
+      "erupting": {
+        "name": "Ausbrechende Vulkane"
+      },
+      "ash_clouds": {
+        "name": "Aschewolken"
+      },
+      "nearest": {
+        "name": "Nächster aktiver Vulkan"
+      },
+      "latest_vona": {
+        "name": "Letzte VONA"
+      },
+      "status": {
+        "name": "Datenquellen",
+        "state": {
+          "ok": "OK",
+          "degraded": "Eingeschränkt",
+          "waiting": "Wartet"
+        }
+      },
+      "volcano": {
+        "name": "{volcano}",
+        "state": {
+          "unknown": "Unbekannt",
+          "normal": "Normal",
+          "advisory": "Erhöht",
+          "watch": "Vorwarnung",
+          "warning": "Warnung"
+        }
+      }
+    }
+  },
+  "issues": {
+    "source_down": {
+      "title": "{source} ist nicht erreichbar",
+      "description": "Magmarium konnte seit mehr als {hours} Stunden keine Daten von {source} laden. Die zuletzt bekannten Daten werden weiter angezeigt. Ist die Quelle nur vorübergehend gestört, ist nichts zu tun; der Hinweis verschwindet von selbst, sobald die Quelle wieder antwortet."
+    }
+  }
+}
