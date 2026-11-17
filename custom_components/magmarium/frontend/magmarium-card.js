@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.0b2";
+const VERSION = "0.1.0b3";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -60,6 +60,8 @@ const ICONS = {
   globe:
     "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm6.93 6h-2.95a15.65 15.65 0 0 0-1.38-3.56A8.03 8.03 0 0 1 18.93 8zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14A8.2 8.2 0 0 1 4 12c0-.69.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2s.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56A7.99 7.99 0 0 1 5.08 16zm2.95-8H5.08a7.99 7.99 0 0 1 4.33-3.56A15.65 15.65 0 0 0 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2s.07-1.35.16-2h4.68c.09.65.16 1.32.16 2s-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2s-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z",
   rotate: "M12 6v3l4-4-4-4v3a8 8 0 0 0-6.76 12.26l1.46-1.46A6 6 0 0 1 12 6zm6.76 1.74-1.46 1.46A6 6 0 0 1 12 18v-3l-4 4 4 4v-3a8 8 0 0 0 6.76-12.26z",
+  full: "M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z",
+  unfull: "M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z",
   close: "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
 };
 
@@ -169,6 +171,8 @@ const STYLE = `
     background: rgba(10,12,18,.82); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 12px 14px;
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 12.5px; line-height: 1.45; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
   .stage.has-regions .info { top: 104px; max-height: calc(100% - 126px); }
+  .stage:fullscreen { height: 100vh !important; border-radius: 0; }
+  .stage.pseudo-full { position: fixed; inset: 0; width: 100vw; height: 100vh !important; height: 100dvh !important; z-index: 9999; }
   .info.hidden { display: none; }
   .info .x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; }
   .info h3 { margin: 0 34px 2px 0; font-size: 16px; font-weight: 650; line-height: 1.25; }
@@ -207,6 +211,7 @@ class MagmariumCard extends HTMLElement {
       rotate: false,
       show_all: true,
       weekly_ash: true,
+      wind_tracks: true,
       labels: true,
       ...(config || {}),
     };
@@ -262,6 +267,7 @@ class MagmariumCard extends HTMLElement {
             <button class="home" title="Back to start view">${svg(ICONS.home)}</button>
             <button class="world" title="Whole globe">${svg(ICONS.globe)}</button>
             <button class="rot" title="Rotate">${svg(ICONS.rotate)}</button>
+            <button class="full" title="Fullscreen">${svg(ICONS.full)}</button>
           </div>
           <div class="info hidden"></div>
         </div>
@@ -316,6 +322,14 @@ class MagmariumCard extends HTMLElement {
       this._rotBtn.classList.toggle("on", this._rotate);
       this._lastInput = 0;
     });
+    this._fullBtn = $(".full");
+    this._fullBtn.addEventListener("click", () => this._toggleFull());
+    this._onFullChange = () => this._syncFull();
+    document.addEventListener("fullscreenchange", this._onFullChange);
+    this._onKey = (e) => {
+      if (e.key === "Escape" && this._pseudoFull) this._setPseudoFull(false);
+    };
+    document.addEventListener("keydown", this._onKey);
     this._renderChips();
 
     const fx = this._cFx;
@@ -357,6 +371,45 @@ class MagmariumCard extends HTMLElement {
     this._ro?.disconnect();
     clearTimeout(this._dataTimer);
     clearTimeout(this._earthTimer);
+    if (this._pseudoFull) this._setPseudoFull(false);
+  }
+
+  // ------------------------------------------------------------------ fullscreen
+
+  _isFull() {
+    return !!this._pseudoFull || (!!document.fullscreenElement && document.fullscreenElement === this);
+  }
+
+  _toggleFull() {
+    if (this._pseudoFull) {
+      this._setPseudoFull(false);
+      return;
+    }
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+      return;
+    }
+    const el = this._stage;
+    if (document.fullscreenEnabled && el.requestFullscreen) {
+      // real fullscreen; browsers without it (iOS, some app webviews) get a full window overlay
+      el.requestFullscreen().catch(() => this._setPseudoFull(true));
+    } else {
+      this._setPseudoFull(true);
+    }
+  }
+
+  _setPseudoFull(on) {
+    this._pseudoFull = on;
+    this._stage.classList.toggle("pseudo-full", on);
+    this._syncFull();
+  }
+
+  _syncFull() {
+    const full = this._isFull();
+    this._fullBtn.innerHTML = svg(full ? ICONS.unfull : ICONS.full);
+    this._fullBtn.title = full ? "Exit fullscreen" : "Fullscreen";
+    this._fullBtn.classList.toggle("on", full);
+    setTimeout(() => this._resize(), 60);
   }
 
   /** chip rows scroll sideways with the mouse wheel and by dragging, not only by touch */
@@ -533,6 +586,11 @@ class MagmariumCard extends HTMLElement {
       if (v.ash.source !== "vona" && !weeklyAsh) continue;
       keepPlumes.add(v.id);
       const ash = { ...v.ash, elev: v.elev };
+      if (ash.toward_deg == null && v.wind && v.wind.toward_deg != null) {
+        // no drift in the report: use the forecast wind at the plume height
+        ash.toward_deg = v.wind.toward_deg;
+        ash.dir_source = "wind";
+      }
       const existing = this._plumes.get(v.id);
       if (existing) existing.update(ash);
       else this._plumes.set(v.id, new AshPlume(v.id, ash));
@@ -675,7 +733,7 @@ class MagmariumCard extends HTMLElement {
     const bad = Object.entries(src).filter(([k, s]) => s.enabled && s.error && k !== "catalog");
     const updated = this._data?.updated ? rel(new Date(this._data.updated * 1000).toISOString()) : "";
     if (bad.length) {
-      const names = bad.map(([k]) => (k.startsWith("magma") ? "MAGMA" : "Weekly report"));
+      const names = bad.map(([k]) => (k.startsWith("magma") ? "MAGMA" : k === "wind" ? "Wind data" : "Weekly report"));
       this._legendSt.textContent = `${[...new Set(names)].join(", ")} not reachable · last data shown`;
       this._legendSt.classList.add("bad");
     } else {
@@ -951,6 +1009,14 @@ class MagmariumCard extends HTMLElement {
       const when = a.source === "vona" ? `observed ${esc(rel(a.time))}` : "reported in the weekly report";
       parts.push(`<div class="line"><span class="ic">☁</span><span class="tx">Ash cloud${bits.length ? ` · ${bits.join(" · ")}` : ""}<div class="muted">${when}</div></span></div>`);
     }
+    if (v.wind) {
+      const w = v.wind;
+      const drift = w.track && w.track.length > 1 ? distKm(w.track[0][0], w.track[0][1], w.track[w.track.length - 1][0], w.track[w.track.length - 1][1]) : null;
+      const bits = [`${fmtInt(Math.round(w.speed_kmh))} km/h toward ${compass(w.toward_deg)}`];
+      if (drift != null) bits.push(`about ${fmtInt(Math.round(drift))} km in ${w.track.length - 1} h`);
+      const used = v.ash && v.ash.toward_deg == null ? " · used for the plume" : "";
+      parts.push(`<div class="line"><span class="ic">💨</span><span class="tx">Wind at ${w.alt_km} km (${w.level_hpa} hPa): ${bits.join(", ")}${used}<div class="muted">Forecast drift shown dashed · simulation from Open-Meteo winds, not an official ash forecast</div></span></div>`);
+    }
     const meta = [];
     if (v.elev != null) meta.push(`${fmtInt(v.elev)} m`);
     if (dist != null) meta.push(`${fmtInt(Math.round(dist))} km from home`);
@@ -1073,6 +1139,67 @@ class MagmariumCard extends HTMLElement {
     renderEarth(this._cEarth, this._earth, this._frame(), this._sun || sunDirection(Date.now()), W, H, R);
   }
 
+  _drawTrack(ctx, w, G, R, strong, t) {
+    const pts = w.track.map(([lat, lon]) => this._project(ecef(lat, lon), G, R));
+    if (pts.every((p) => p.z <= 0.02)) return;
+    const a = strong ? 0.85 : 0.55;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    // soft glow underneath
+    ctx.strokeStyle = `rgba(20,16,12,${0.35 * a})`;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    let started = false;
+    for (const p of pts) {
+      if (p.z <= 0.02) { started = false; continue; }
+      if (!started) { ctx.moveTo(p.x, p.y); started = true; } else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    // marching dashes show the direction of travel
+    ctx.setLineDash([6, 6]);
+    ctx.lineDashOffset = -((t * 14) % 12);
+    ctx.strokeStyle = `rgba(214,206,196,${a})`;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // hourly ticks
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i];
+      if (p.z <= 0.02) continue;
+      ctx.fillStyle = `rgba(214,206,196,${a * (i === pts.length - 1 ? 1 : 0.7)})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, i === pts.length - 1 ? 2.6 : 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // arrow head and time label at the end
+    const n = pts.length;
+    const e = pts[n - 1], b = pts[n - 2];
+    if (e.z > 0.02 && b.z > 0.02) {
+      const ang = Math.atan2(e.y - b.y, e.x - b.x);
+      if (Number.isFinite(ang) && Math.hypot(e.x - b.x, e.y - b.y) > 2) {
+        ctx.fillStyle = `rgba(230,222,212,${a})`;
+        ctx.beginPath();
+        ctx.moveTo(e.x + Math.cos(ang) * 7, e.y + Math.sin(ang) * 7);
+        ctx.lineTo(e.x + Math.cos(ang + 2.5) * 6, e.y + Math.sin(ang + 2.5) * 6);
+        ctx.lineTo(e.x + Math.cos(ang - 2.5) * 6, e.y + Math.sin(ang - 2.5) * 6);
+        ctx.closePath();
+        ctx.fill();
+      }
+      if (strong) {
+        ctx.font = "600 10px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+        ctx.textBaseline = "middle";
+        const text = `+${n - 1} h`;
+        ctx.fillStyle = "rgba(6,8,14,0.6)";
+        const tw = ctx.measureText(text).width;
+        ctx.fillRect(e.x + 8, e.y - 7, tw + 8, 14);
+        ctx.fillStyle = "#e6ded4";
+        ctx.fillText(text, e.x + 12, e.y);
+      }
+    }
+    ctx.restore();
+  }
+
   _drawFx() {
     const ctx = this._cFx.getContext("2d");
     const dpr = this._dpr;
@@ -1134,6 +1261,17 @@ class MagmariumCard extends HTMLElement {
       const base = v.level >= 4 ? 7.6 : v.level === 3 ? 6.8 : v.level === 2 ? 5.8 : v.level === 1 ? 4.7 : 4.4;
       return base * zf * (v.erupting ? 1.08 : 1);
     };
+
+    // simulated ash drift along the forecast winds, on the ground below the cones
+    if (this._config.wind_tracks !== false) {
+      for (const { v } of items) {
+        const w = v.wind;
+        if (!w || !w.track || w.track.length < 2) continue;
+        const sel = this._selected && this._selected.kind === "volcano" && this._selected.v.id === v.id;
+        if (!sel && !this._plumes.has(v.id)) continue;
+        this._drawTrack(ctx, w, G, R, sel, t);
+      }
+    }
 
     for (const { v, pr } of items) {
       const s = sizeFor(v);
