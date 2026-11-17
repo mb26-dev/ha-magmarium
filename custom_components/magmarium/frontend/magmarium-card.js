@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.0b7";
+const VERSION = "0.1.0b8";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -661,7 +661,7 @@ class MagmariumCard extends HTMLElement {
       .map((r) => ({ name: r[0], country: r[1], lat: r[2], lon: r[3], elev: r[4], number: r[5], wiki: r[6] || null, p: ecef(r[2], r[3]) }));
     this._sigmets = (data.sigmets || [])
       .filter((a) => Array.isArray(a.poly) && a.poly.length >= 3)
-      .map((a) => ({ ...a, pts: a.poly.map(([la, lo]) => ecef(la, lo)), c: ecef(a.poly.reduce((t, q) => t + q[0], 0) / a.poly.length, a.poly.reduce((t, q) => t + q[1], 0) / a.poly.length) }));
+      .map((a) => ({ ...a, pts: a.poly.map(([la, lo]) => ecef(la, lo)), fpts: Array.isArray(a.forecast_poly) && a.forecast_poly.length >= 3 ? a.forecast_poly.map(([la, lo]) => ecef(la, lo)) : null, c: ecef(a.poly.reduce((t, q) => t + q[0], 0) / a.poly.length, a.poly.reduce((t, q) => t + q[1], 0) / a.poly.length) }));
     this._quakes = (data.quakes || []).map((q) => ({
       lat: q[0], lon: q[1], mag: q[2], depth: q[3], time: q[4], place: q[5], url: q[6], volcano: q[7], p: ecef(q[0], q[1]), ms: new Date(q[4]).getTime(),
     }));
@@ -1209,6 +1209,7 @@ class MagmariumCard extends HTMLElement {
     if (a.base_m != null && a.top_m != null) bits.push(`${fmtInt(a.base_m)} to ${fmtInt(a.top_m)} m`);
     if (a.toward_deg != null) bits.push(`moving ${compass(a.toward_deg)}${a.speed_kmh ? ` at ${a.speed_kmh} km/h` : ""}`);
     lines.push(`<div class="line"><span class="ic">✈</span><span class="tx">${vol}${bits.length ? ` · ${bits.join(" · ")}` : ""}<div class="muted">${a.from ? `from ${esc(utc(a.from))} ` : ""}${a.to ? `until ${esc(utc(a.to))}` : ""}</div></span></div>`);
+    if (a.forecast_poly) lines.push(`<div class="line"><span class="ic">🕒</span><span class="tx">Forecast position at the end of the validity<div class="muted">shown as the faint dotted area</div></span></div>`);
     if (a.raw) lines.push(`<div class="notice"><div class="muted">SIGMET text</div>${esc(a.raw)}</div>`);
     lines.push(`<div class="muted" style="margin-top:8px">Official volcanic ash area for aviation, issued by the meteorological watch office of the flight information region.</div>`);
     lines.push(`<div class="links"><a href="https://aviationweather.gov/gfa/#sigmet" target="_blank" rel="noopener">AviationWeather.gov</a></div>`);
@@ -1553,6 +1554,21 @@ class MagmariumCard extends HTMLElement {
         if (pts.every((q) => q.z <= 0.02)) continue;
         const sel = this._selected && this._selected.kind === "sigmet" && this._selected.v === a;
         const pulse = 0.5 + 0.5 * Math.sin(t * 1.6);
+        if (a.fpts) {
+          // forecast position of the ash cloud at the end of the validity: faint and dotted
+          const fp = a.fpts.map((q) => this._project(q, G, R));
+          ctx.save();
+          ctx.beginPath();
+          fp.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+          ctx.closePath();
+          ctx.fillStyle = `rgba(150,130,120,${sel ? 0.16 : 0.08})`;
+          ctx.fill();
+          ctx.setLineDash([2, 4]);
+          ctx.strokeStyle = sel ? "rgba(255,190,120,0.7)" : "rgba(235,215,195,0.45)";
+          ctx.lineWidth = 1.1;
+          ctx.stroke();
+          ctx.restore();
+        }
         ctx.save();
         ctx.beginPath();
         pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
