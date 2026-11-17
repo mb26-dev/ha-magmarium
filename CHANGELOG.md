@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.0b7 - 2026-11-17
+
+- Notice texts are easier to read: times like "1218 UTC (1918 local)" are shown as "12:18 UTC (19:18 local)"
+- Sentences that a notice repeats (e.g. "Ash-cloud is not observed.") are shown only once
+
 ## 0.1.0b6 - 2026-11-17
 
 - Live cameras: tap a volcano and its newest official camera image is shown in the info panel, a tap opens the camera page
