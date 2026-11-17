@@ -239,6 +239,7 @@ def parse_sigmets(text: str, now: datetime) -> list[dict[str, Any]]:
         raise ValueError("SIGMET: expected a list")
     ts = now.timestamp()
     out: list[dict[str, Any]] = []
+    forecasts: list[tuple[dict[str, Any], list[list[float]]]] = []
     for row in data:
         if not isinstance(row, dict) or str(row.get("hazard") or "").upper() != "VA":
             continue
@@ -251,6 +252,10 @@ def parse_sigmets(text: str, now: datetime) -> list[dict[str, Any]]:
             if lat is not None and lon is not None:
                 poly.append([round(lat, 3), round(lon, 3)])
         if len(poly) < 3:
+            continue
+        if str(row.get("seriesId") or "").upper().endswith("F"):
+            # the forecast position of the ash cloud at the end of the validity ("FCST AT ...")
+            forecasts.append((row, poly))
             continue
         top_ft = _num(row.get("top"))
         base_ft = _num(row.get("base"))
@@ -267,8 +272,17 @@ def parse_sigmets(text: str, now: datetime) -> list[dict[str, Any]]:
             "toward_deg": COMPASS.get(dir_txt),
             "speed_kmh": round(spd * 1.852) if spd is not None else None,
             "poly": poly,
+            "forecast_poly": None,
             "raw": str(row.get("rawSigmet") or "")[:1200],
+            "_key": (row.get("firId"), str(row.get("rawSigmet") or "")),
         })
+    for row, poly in forecasts:
+        key = (row.get("firId"), str(row.get("rawSigmet") or ""))
+        base = next((s for s in out if s["_key"] == key), None)
+        if base is not None:
+            base["forecast_poly"] = poly
+    for s in out:
+        s.pop("_key", None)
     return out
 
 

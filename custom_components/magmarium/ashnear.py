@@ -65,9 +65,16 @@ def ash_threats(
     found: list[dict[str, Any]] = []
     for s in sigmets:
         d = distance_to_polygon_km(lat, lon, s.get("poly") or [])
+        forecast = False
+        if s.get("forecast_poly"):
+            # the official forecast position at the end of the validity counts as well
+            df = distance_to_polygon_km(lat, lon, s["forecast_poly"])
+            if df < d:
+                d, forecast = df, True
         if d <= radius_km:
             found.append({
                 "kind": "sigmet",
+                "forecast": forecast,
                 "volcano": s.get("volcano"),
                 "distance_km": round(d, 1),
                 "inside": d == 0.0,
