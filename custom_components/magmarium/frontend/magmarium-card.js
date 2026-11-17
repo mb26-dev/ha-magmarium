@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.0b1";
+const VERSION = "0.1.0b2";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -14,16 +14,38 @@ const FILTERS = [
   ["ash", "Ash clouds"],
   ["elevated", "Elevated"],
 ];
+// Quick-select regions: key, chip label, view [lat, lon, zoom], box [latMin, latMax, lonMin, lonMax].
+// A box whose lonMin is larger than lonMax crosses the antimeridian.
+const REGIONS = [
+  ["indonesia", "Indonesia", [-2.5, 118.0, 2.7], [-11.5, 6.5, 94, 142]],
+  ["philippines", "Philippines", [12.0, 123.0, 4.2], [4, 21.5, 116, 128]],
+  ["japan", "Japan", [35.5, 137.5, 3.6], [24, 46, 128, 147]],
+  ["kamchatka", "Kamchatka & Kurils", [52.5, 157.5, 3.4], [43, 62, 145, 168]],
+  ["alaska", "Alaska & Aleutians", [57.0, -160.0, 2.6], [50, 66, 165, -140]],
+  ["cascades", "Cascades", [45.0, -121.5, 4.6], [38, 52, -126, -116]],
+  ["hawaii", "Hawaii", [19.6, -155.6, 8.0], [18, 23, -161, -154]],
+  ["central_america", "Mexico & Central America", [15.0, -92.0, 3.0], [7, 23, -106, -82]],
+  ["caribbean", "Caribbean", [15.0, -62.0, 5.0], [11, 19, -66, -59]],
+  ["andes", "Andes", [-20.0, -71.0, 1.9], [-56, 6, -82, -64]],
+  ["iceland", "Iceland", [64.8, -18.5, 6.0], [62, 67.5, -25, -12]],
+  ["atlantic", "Azores & Canaries", [32.0, -22.0, 2.8], [13, 42, -32, -12]],
+  ["mediterranean", "Italy & Mediterranean", [39.5, 18.0, 3.6], [34, 46, -10, 32]],
+  ["east_africa", "East Africa", [3.0, 36.0, 2.6], [-12, 17, 28, 44]],
+  ["melanesia", "PNG & Vanuatu", [-8.5, 156.0, 2.8], [-22, 0, 140, 172]],
+  ["new_zealand", "New Zealand & Tonga", [-30.0, 178.0, 2.4], [-48, -14, 165, -172]],
+];
 const PRESETS = {
-  indonesia: [-2.5, 118.0, 2.7],
   world: [12.0, 115.0, 1.0],
   ring_of_fire: [10.0, 160.0, 1.0],
   europe: [41.0, 15.0, 3.0],
-  iceland: [64.8, -18.5, 6.0],
-  japan: [35.5, 137.5, 3.6],
-  alaska: [57.0, -158.0, 2.4],
-  hawaii: [19.6, -155.6, 8.0],
+  ...Object.fromEntries(REGIONS.map(([key, , view]) => [key, view])),
 };
+
+function inBox(lat, lon, box) {
+  const [la0, la1, lo0, lo1] = box;
+  if (lat < la0 || lat > la1) return false;
+  return lo0 <= lo1 ? lon >= lo0 && lon <= lo1 : lon >= lo0 || lon <= lo1;
+}
 const ZOOM_MIN = 0.8;
 const ZOOM_MAX = 14;
 const DATA_REFRESH_MS = 3 * 60 * 1000;
@@ -126,6 +148,10 @@ const STYLE = `
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); white-space: nowrap; }
   .chip.on { background: rgba(255,150,50,.24); border-color: rgba(255,171,74,.75); color: #fff; }
   .chip .n { opacity: .7; margin-left: 4px; }
+  .regions .chip { font-size: 11px; padding: 3px 9px; background: rgba(12,14,20,.5); }
+  .regions .chip.quiet { color: #b9b4ad; }
+  .regions .chip .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: 0.5px; }
+  .regions .chip.on { background: rgba(255,150,50,.24); border-color: rgba(255,171,74,.75); color: #fff; }
   .legend { position: absolute; left: 10px; bottom: 10px; pointer-events: none; font-size: 10.5px;
     background: rgba(8,10,16,.58); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 6px 9px;
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); max-width: calc(100% - 70px); }
@@ -142,6 +168,7 @@ const STYLE = `
   .info { position: absolute; top: 74px; right: 54px; width: 300px; max-height: calc(100% - 96px); overflow-y: auto;
     background: rgba(10,12,18,.82); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 12px 14px;
     backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); font-size: 12.5px; line-height: 1.45; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+  .stage.has-regions .info { top: 104px; max-height: calc(100% - 126px); }
   .info.hidden { display: none; }
   .info .x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; }
   .info h3 { margin: 0 34px 2px 0; font-size: 16px; font-weight: 650; line-height: 1.25; }
@@ -176,6 +203,7 @@ class MagmariumCard extends HTMLElement {
       title: "Magmarium",
       height: 460,
       center: "home",
+      regions: true,
       rotate: false,
       show_all: true,
       weekly_ash: true,
@@ -225,6 +253,7 @@ class MagmariumCard extends HTMLElement {
           <div class="top">
             <div class="title"><b></b><span class="sub"></span></div>
             <div class="chips"></div>
+            <div class="chips regions"></div>
           </div>
           <div class="legend"><div class="row"></div><div class="st"></div></div>
           <div class="controls">
@@ -246,7 +275,9 @@ class MagmariumCard extends HTMLElement {
     this._msg = $(".msg");
     this._titleEl = $(".title b");
     this._subEl = $(".title .sub");
-    this._chipsEl = $(".chips");
+    this._chipsEl = $(".chips:not(.regions)");
+    this._regionsEl = $(".chips.regions");
+    for (const row of [this._chipsEl, this._regionsEl]) this._scrollable(row);
     this._legendRow = $(".legend .row");
     this._legendSt = $(".legend .st");
     this._info = $(".info");
@@ -271,7 +302,12 @@ class MagmariumCard extends HTMLElement {
 
     $(".zin").addEventListener("click", () => this._zoomBy(1.6));
     $(".zout").addEventListener("click", () => this._zoomBy(1 / 1.6));
-    $(".home").addEventListener("click", () => this._flyTo(...this._startView()));
+    $(".home").addEventListener("click", () => {
+      const c = this._config.center;
+      const region = typeof c === "string" && REGIONS.some((r) => r[0] === c) ? c : null;
+      const [lat, lon, zoom] = this._startView();
+      this._flyTo(lat, lon, zoom, null, region);
+    });
     $(".world").addEventListener("click", () => this._flyTo(this._view.lat, this._view.lon, 1.0));
     this._rotBtn = $(".rot");
     this._rotBtn.classList.toggle("on", this._rotate);
@@ -323,6 +359,46 @@ class MagmariumCard extends HTMLElement {
     clearTimeout(this._earthTimer);
   }
 
+  /** chip rows scroll sideways with the mouse wheel and by dragging, not only by touch */
+  _scrollable(row) {
+    row.addEventListener(
+      "wheel",
+      (e) => {
+        if (row.scrollWidth <= row.clientWidth) return;
+        const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        if (!d) return;
+        e.preventDefault();
+        row.scrollLeft += d;
+      },
+      { passive: false }
+    );
+    let drag = null;
+    row.addEventListener("pointerdown", (e) => {
+      if (e.pointerType !== "mouse" || row.scrollWidth <= row.clientWidth) return;
+      drag = { x: e.clientX, left: row.scrollLeft, moved: 0 };
+    });
+    row.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      drag.moved = Math.max(drag.moved, Math.abs(dx));
+      row.scrollLeft = drag.left - dx;
+    });
+    let draggedAt = 0;
+    // swallow the click that ends a drag so it does not trigger a chip
+    row.addEventListener(
+      "click",
+      (ev) => {
+        if (performance.now() - draggedAt < 250) ev.stopPropagation();
+      },
+      { capture: true }
+    );
+    row.addEventListener("pointerup", () => {
+      if (drag && drag.moved > 5) draggedAt = performance.now();
+      drag = null;
+    });
+    row.addEventListener("pointerleave", () => (drag = null));
+  }
+
   _titleHtml() {
     const title = String(this._config.title ?? "Magmarium");
     if (title === "Magmarium") return "Magma<span>rium</span>";
@@ -346,6 +422,8 @@ class MagmariumCard extends HTMLElement {
   _initView() {
     const [lat, lon, zoom] = this._startView();
     this._view = { lat, lon, zoom };
+    const c = this._config.center;
+    this._region = typeof c === "string" && REGIONS.some((r) => r[0] === c) ? c : null;
   }
 
   _resize() {
@@ -503,7 +581,6 @@ class MagmariumCard extends HTMLElement {
       return `<span class="chip ${this._filter === key ? "on" : ""}" data-f="${key}">${label}${n != null ? `<span class="n">${n}</span>` : ""}</span>`;
     });
     chips.push(`<span class="chip ${this._showAll ? "on" : ""}" data-t="all">All known volcanoes</span>`);
-    chips.push(`<span class="chip" data-p="indonesia">Indonesia</span>`);
     this._chipsEl.innerHTML = chips.join("");
     this._chipsEl.querySelectorAll(".chip").forEach((el) => {
       el.addEventListener("click", () => {
@@ -513,12 +590,79 @@ class MagmariumCard extends HTMLElement {
         } else if (el.dataset.t) {
           this._showAll = !this._showAll;
           this._renderChips();
-        } else if (el.dataset.p) {
-          const p = PRESETS[el.dataset.p];
-          this._flyTo(p[0], p[1], p[2]);
         }
       });
     });
+    this._renderRegions();
+  }
+
+  _regionList() {
+    const cfg = this._config.regions;
+    if (cfg === false) return [];
+    if (Array.isArray(cfg)) {
+      const wanted = cfg.map((k) => String(k).toLowerCase());
+      return wanted.map((k) => REGIONS.find((r) => r[0] === k)).filter(Boolean);
+    }
+    return REGIONS;
+  }
+
+  _regionStats(box) {
+    let active = 0;
+    let top = 0;
+    for (const v of this._volcanoes || []) {
+      if (!inBox(v.lat, v.lon, box)) continue;
+      if (v.level >= 2 || v.erupting) active += 1;
+      const rank = v.erupting ? Math.max(v.level, 3) : v.level;
+      if (rank > top) top = rank;
+    }
+    let known = 0;
+    for (const c of this._catalog || []) if (inBox(c.lat, c.lon, box)) known += 1;
+    return { active, top, known };
+  }
+
+  _renderRegions() {
+    if (!this._regionsEl) return;
+    const list = this._regionList();
+    this._regionsEl.style.display = list.length ? "" : "none";
+    this._stage.classList.toggle("has-regions", list.length > 0);
+    if (!list.length) return;
+    const html = list.map(([key, label, , box]) => {
+      const st = this._regionStats(box);
+      const color = st.top >= 2 ? LEVEL_COLORS[st.top] : null;
+      const dot = color ? `<span class="dot" style="background:${color}"></span>` : "";
+      const n = st.active ? `<span class="n">${st.active}</span>` : "";
+      const cls = ["chip", this._region === key ? "on" : "", st.active ? "" : "quiet"].filter(Boolean).join(" ");
+      const title = `${label}: ${st.active} active, ${st.known} known volcanoes`;
+      return `<span class="${cls}" data-r="${key}" title="${esc(title)}">${dot}${esc(label)}${n}</span>`;
+    });
+    this._regionsEl.innerHTML = html.join("");
+    this._regionsEl.querySelectorAll(".chip").forEach((el) => {
+      el.addEventListener("click", () => this._goRegion(el.dataset.r));
+    });
+  }
+
+  _topPad() {
+    return this._stage && this._stage.classList.contains("has-regions") ? 84 : 52;
+  }
+
+  _goRegion(key) {
+    const r = REGIONS.find((x) => x[0] === key);
+    if (!r) return;
+    const [lat, lon, zoom] = r[2];
+    if (this._selected) {
+      this._selected = null;
+      this._renderInfo();
+    }
+    this._flyTo(lat, lon, zoom, null, key);
+    const el = this._regionsEl.querySelector(`[data-r="${key}"]`);
+    el?.scrollIntoView?.({ behavior: "smooth", block: "nearest", inline: "center" });
+  }
+
+  _setRegion(key) {
+    if (this._region === key) return;
+    this._region = key;
+    if (!this._regionsEl) return;
+    this._regionsEl.querySelectorAll(".chip").forEach((el) => el.classList.toggle("on", el.dataset.r === key));
   }
 
   _renderLegend() {
@@ -651,6 +795,7 @@ class MagmariumCard extends HTMLElement {
     this._drag.x = pos.x;
     this._drag.y = pos.y;
     this._drag.moved += Math.abs(dx) + Math.abs(dy);
+    if (this._drag.moved >= 7) this._setRegion(null);
     const R = this._R();
     const now = performance.now();
     const dt = Math.max(1, now - (this._drag.lt || now - 16)) / 1000;
@@ -704,10 +849,11 @@ class MagmariumCard extends HTMLElement {
   }
 
   _zoomBy(f) {
-    this._flyTo(this._view.lat, this._view.lon, this._view.zoom * f, 450);
+    this._flyTo(this._view.lat, this._view.lon, this._view.zoom * f, 450, this._region);
   }
 
-  _flyTo(lat, lon, zoom, ms) {
+  _flyTo(lat, lon, zoom, ms, region) {
+    this._setRegion(region || null);
     const from = { ...this._view };
     let dLon = ((lon - from.lon + 540) % 360) - 180;
     const to = { lat: clamp(lat, -85, 85), lon: from.lon + dLon, zoom: clamp(zoom, ZOOM_MIN, ZOOM_MAX) };
@@ -957,15 +1103,20 @@ class MagmariumCard extends HTMLElement {
 
     const zf = clamp(Math.pow(zoom, 0.55), 0.85, 3.6);
 
-    // catalogue volcanoes without a current report
+    // catalogue volcanoes without a current report: grow with the zoom so a
+    // quiet region still reads as a chain of volcanoes
+    const quiet = [];
+    const activeIds = new Set(this._volcanoes.map((v) => v.number).filter(Boolean));
+    const catS = 2.3 * clamp(Math.pow(zoom, 0.62), 0.8, 3.6);
     if (this._showAll && this._filter === "all") {
-      const s = 2.3 * clamp(Math.pow(zoom, 0.5), 0.8, 2.6);
       for (const c of this._catalog) {
+        if (c.number && activeIds.has(c.number)) continue;
         const pr = this._project(c.p, G, R);
         if (pr.z <= 0.04 || pr.x < -10 || pr.x > W + 10 || pr.y < -10 || pr.y > H + 10) continue;
-        const a = smooth(0.04, 0.2, pr.z) * 0.8;
-        drawVolcano(ctx, pr.x, pr.y, s, { minor: true, alpha: a });
-        hits.push({ kind: "catalog", v: c, x: pr.x, y: pr.y - s * 0.7, r: Math.max(9, s * 2.4) });
+        const a = smooth(0.04, 0.2, pr.z) * (zoom >= 3 ? 0.95 : 0.8);
+        drawVolcano(ctx, pr.x, pr.y, catS, { minor: true, alpha: a });
+        hits.push({ kind: "catalog", v: c, x: pr.x, y: pr.y - catS * 0.7, r: Math.max(9, catS * 2.4) });
+        quiet.push({ c, pr });
       }
     }
 
@@ -1032,7 +1183,7 @@ class MagmariumCard extends HTMLElement {
         const lx = pr.x + s * 1.5 + 4;
         const ly = pr.y - s * 0.55;
         const rect = [lx - 4, ly - 8, tw + 8, 16];
-        if (rect[0] + rect[2] > W - 4 || ly < 52) continue;
+        if (rect[0] + rect[2] > W - 4 || ly < this._topPad()) continue;
         if (placed.some((r) => rect[0] < r[0] + r[2] && rect[0] + rect[2] > r[0] && rect[1] < r[1] + r[3] && rect[1] + rect[3] > r[1])) continue;
         placed.push(rect);
         const alpha = smooth(0.1, 0.3, pr.z);
@@ -1045,6 +1196,34 @@ class MagmariumCard extends HTMLElement {
         ctx.fillStyle = v.level >= 2 ? rgba(LEVEL_COLORS[v.level], 1) : "#f1efe9";
         ctx.fillText(text, lx, ly + 0.5);
         ctx.globalAlpha = 1;
+      }
+      // quiet volcanoes get muted names once a region is zoomed in
+      if (zoom >= 4.5 && quiet.length) {
+        ctx.font = "500 10.5px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+        const maxLabels = zoom >= 8 ? 60 : 30;
+        let count = 0;
+        const ordered = quiet.slice().sort((a, b) => (b.c.elev || 0) - (a.c.elev || 0));
+        for (const { c, pr } of ordered) {
+          if (count >= maxLabels) break;
+          const text = c.name;
+          const tw = ctx.measureText(text).width;
+          const lx = pr.x + catS * 1.3 + 3;
+          const ly = pr.y - catS * 0.5;
+          const rect = [lx - 3, ly - 7, tw + 6, 14];
+          if (rect[0] + rect[2] > W - 48 || ly < this._topPad() + 4 || ly > H - 40) continue;
+          if (placed.some((r) => rect[0] < r[0] + r[2] && rect[0] + rect[2] > r[0] && rect[1] < r[1] + r[3] && rect[1] + rect[3] > r[1])) continue;
+          placed.push(rect);
+          count += 1;
+          ctx.globalAlpha = smooth(0.15, 0.35, pr.z) * 0.85;
+          ctx.fillStyle = "rgba(6,8,14,0.5)";
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(rect[0], rect[1], rect[2], rect[3], 7);
+          else ctx.rect(rect[0], rect[1], rect[2], rect[3]);
+          ctx.fill();
+          ctx.fillStyle = "#cfcac3";
+          ctx.fillText(text, lx, ly + 0.5);
+          ctx.globalAlpha = 1;
+        }
       }
     }
     this._hits = hits;
