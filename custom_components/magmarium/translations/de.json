@@ -6,11 +6,15 @@
         "description": "Aktive Vulkane auf einem lebendigen Globus. Wähle die Datenquellen und optional Vulkane, die beobachtet werden sollen (mit Komma getrennt, z. B. Semeru, Merapi, Krakatau). Jeder beobachtete Vulkan bekommt einen eigenen Sensor.",
         "data": {
           "sources": "Datenquellen",
-          "watched_volcanoes": "Beobachtete Vulkane"
+          "watched_volcanoes": "Beobachtete Vulkane",
+          "places": "Orte für die Aschewarnung",
+          "ash_radius_km": "Radius der Aschewarnung"
         },
         "data_description": {
-          "sources": "MAGMA Indonesia: offizielle Warnstufen und VONA-Meldungen (Aschewolken) für Indonesien, alle 10 Minuten. Wochenbericht: weltweite Aktivität vom Smithsonian Global Volcanism Program und USGS.",
-          "watched_volcanoes": "Namen wie in den Quellen, z. B. Semeru, Merapi, Anak Krakatau, Lewotobi, Etna."
+          "sources": "MAGMA Indonesia: offizielle Warnstufen und VONA-Meldungen (Aschewolken) für Indonesien. Wochenbericht: weltweite Aktivität (Smithsonian / USGS). Offizielle Warnstufen: USGS (USA), Icelandic Met Office, JMA (Japan). Asche-SIGMETs: offizielle Aschegebiete für die Luftfahrt, weltweit. Erdbeben: USGS.",
+          "watched_volcanoes": "Namen wie in den Quellen, z. B. Semeru, Merapi, Anak Krakatau, Lewotobi, Etna.",
+          "places": "Zonen wie Zuhause oder deine Flughäfen. Jede bekommt einen Binärsensor, der angeht, wenn eine Aschewolke, ein offizielles Aschegebiet (SIGMET) oder eine simulierte Driftspur in den Radius kommt.",
+          "ash_radius_km": "Abstand um jeden Ort, in km."
         }
       }
     },
@@ -28,10 +32,14 @@
         "title": "Magmarium",
         "data": {
           "sources": "Datenquellen",
-          "watched_volcanoes": "Beobachtete Vulkane"
+          "watched_volcanoes": "Beobachtete Vulkane",
+          "places": "Orte für die Aschewarnung",
+          "ash_radius_km": "Radius der Aschewarnung"
         },
         "data_description": {
-          "watched_volcanoes": "Mit Komma getrennt, z. B. Semeru, Merapi, Krakatau. Jeder bekommt einen eigenen Sensor."
+          "watched_volcanoes": "Mit Komma getrennt, z. B. Semeru, Merapi, Krakatau. Jeder bekommt einen eigenen Sensor.",
+          "places": "Zonen wie Zuhause oder deine Flughäfen. Jede bekommt einen Binärsensor, der angeht, wenn eine Aschewolke, ein offizielles Aschegebiet (SIGMET) oder eine simulierte Driftspur in den Radius kommt.",
+          "ash_radius_km": "Abstand um jeden Ort, in km."
         }
       }
     },
@@ -73,6 +81,17 @@
           "watch": "Vorwarnung",
           "warning": "Warnung"
         }
+      },
+      "sigmets": {
+        "name": "Asche-SIGMETs"
+      },
+      "volcanic_quakes": {
+        "name": "Erdbeben an Vulkanen"
+      }
+    },
+    "binary_sensor": {
+      "ash_near": {
+        "name": "Asche nahe {place}"
       }
     }
   },

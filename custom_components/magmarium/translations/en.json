@@ -6,11 +6,15 @@
         "description": "Active volcanoes on a living globe. Choose the data sources and, optionally, volcanoes to watch (comma separated, e.g. Semeru, Merapi, Krakatau). Each watched volcano gets its own sensor.",
         "data": {
           "sources": "Data sources",
-          "watched_volcanoes": "Volcanoes to watch"
+          "watched_volcanoes": "Volcanoes to watch",
+          "places": "Places to watch for ash",
+          "ash_radius_km": "Ash warning radius"
         },
         "data_description": {
-          "sources": "MAGMA Indonesia: official alert levels and VONA aviation notices (ash clouds) for Indonesia, updated every 10 minutes. Weekly report: worldwide activity from the Smithsonian Global Volcanism Program and USGS.",
-          "watched_volcanoes": "Names as used by the sources, e.g. Semeru, Merapi, Anak Krakatau, Lewotobi, Etna."
+          "sources": "MAGMA Indonesia: official alert levels and VONA notices (ash clouds) for Indonesia. Weekly report: worldwide activity (Smithsonian / USGS). Official alert levels: USGS (US), Icelandic Met Office, JMA (Japan). Ash SIGMETs: official volcanic ash areas for aviation, worldwide. Earthquakes: USGS.",
+          "watched_volcanoes": "Names as used by the sources, e.g. Semeru, Merapi, Anak Krakatau, Lewotobi, Etna.",
+          "places": "Zones such as Home or your airports. Each gets a binary sensor that turns on when an ash cloud, an official ash area (SIGMET) or a simulated drift track comes within the radius.",
+          "ash_radius_km": "Distance around each place, in km."
         }
       }
     },
@@ -28,10 +32,14 @@
         "title": "Magmarium",
         "data": {
           "sources": "Data sources",
-          "watched_volcanoes": "Volcanoes to watch"
+          "watched_volcanoes": "Volcanoes to watch",
+          "places": "Places to watch for ash",
+          "ash_radius_km": "Ash warning radius"
         },
         "data_description": {
-          "watched_volcanoes": "Comma separated, e.g. Semeru, Merapi, Krakatau. Each gets its own sensor."
+          "watched_volcanoes": "Comma separated, e.g. Semeru, Merapi, Krakatau. Each gets its own sensor.",
+          "places": "Zones such as Home or your airports. Each gets a binary sensor that turns on when an ash cloud, an official ash area (SIGMET) or a simulated drift track comes within the radius.",
+          "ash_radius_km": "Distance around each place, in km."
         }
       }
     },
@@ -73,6 +81,17 @@
           "watch": "Watch",
           "warning": "Warning"
         }
+      },
+      "sigmets": {
+        "name": "Ash SIGMETs"
+      },
+      "volcanic_quakes": {
+        "name": "Earthquakes near volcanoes"
+      }
+    },
+    "binary_sensor": {
+      "ash_near": {
+        "name": "Ash near {place}"
       }
     }
   },
