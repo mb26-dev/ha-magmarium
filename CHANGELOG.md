@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0b8 - 2026-11-17
+
+- Ash SIGMETs are no longer counted twice: the forecast position that a SIGMET carries for the end of its validity is now part of that SIGMET instead of a second one
+- The forecast position is drawn as a faint dotted area next to the observed ash area
+- "Ash near <place>" also turns on when the official forecast position comes within the radius (attribute `forecast` in the threat)
+
 ## 0.1.0b7 - 2026-11-17
 
 - Notice texts are easier to read: times like "1218 UTC (1918 local)" are shown as "12:18 UTC (19:18 local)"
