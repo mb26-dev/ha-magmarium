@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.0b3";
+const VERSION = "0.1.0b4";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -52,6 +52,9 @@ const DATA_REFRESH_MS = 3 * 60 * 1000;
 const EARTH_RETRY_MS = 90 * 1000;
 const SUN_REFRESH_MS = 60 * 1000;
 const MAX_EARTH_PIXELS = 1.6e6;
+const HOUR = 3600 * 1000;
+const REPLAY_HOURS_PER_SECOND = 12;
+const OFFICIAL_NAMES = { usgs: "USGS", imo: "Icelandic Met Office", jma: "Japan Meteorological Agency" };
 
 const ICONS = {
   plus: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
@@ -62,6 +65,9 @@ const ICONS = {
   rotate: "M12 6v3l4-4-4-4v3a8 8 0 0 0-6.76 12.26l1.46-1.46A6 6 0 0 1 12 6zm6.76 1.74-1.46 1.46A6 6 0 0 1 12 18v-3l-4 4 4 4v-3a8 8 0 0 0 6.76-12.26z",
   full: "M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z",
   unfull: "M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z",
+  history: "M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z",
+  play: "M8 5v14l11-7z",
+  pause: "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
   close: "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
 };
 
@@ -112,6 +118,20 @@ function utc(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+function wikiUrl(title, name) {
+  if (title) return `https://en.wikipedia.org/wiki/${encodeURIComponent(title).replace(/%2F/g, "/")}`;
+  return `https://en.wikipedia.org/w/index.php?search=${encodeURIComponent(`${name} volcano`)}`;
+}
+
+function pointInPoly(x, y, pts) {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const a = pts[i], b = pts[j];
+    if ((a.y > y) !== (b.y > y) && x < ((b.x - a.x) * (y - a.y)) / ((b.y - a.y) || 1e-9) + a.x) inside = !inside;
+  }
+  return inside;
 }
 
 function fmtInt(n) {
@@ -174,6 +194,18 @@ const STYLE = `
   .stage:fullscreen { height: 100vh !important; border-radius: 0; }
   .stage.pseudo-full { position: fixed; inset: 0; width: 100vw; height: 100vh !important; height: 100dvh !important; z-index: 9999; }
   .info.hidden { display: none; }
+  .replay { position: absolute; left: 10px; right: 54px; bottom: 10px; display: none; align-items: center; gap: 8px;
+    background: rgba(8,10,16,.78); border: 1px solid rgba(255,171,74,.45); border-radius: 12px; padding: 7px 10px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 11.5px; }
+  .stage.replaying .replay { display: flex; }
+  .stage.replaying .legend { display: none; }
+  .replay button { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18);
+    background: rgba(255,150,50,.2); color: #ffd3a0; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+  .replay button svg { width: 16px; height: 16px; fill: currentColor; }
+  .replay input[type=range] { flex: 1 1 auto; min-width: 60px; accent-color: #ff9b3d; }
+  .replay .when { flex: 0 0 auto; text-align: right; line-height: 1.25; white-space: nowrap; }
+  .replay .when b { color: #ffcf9a; font-weight: 650; }
+  .replay .when span { opacity: .7; font-size: 10.5px; }
   .info .x { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; }
   .info h3 { margin: 0 34px 2px 0; font-size: 16px; font-weight: 650; line-height: 1.25; }
   .info .where { opacity: .72; font-size: 11.5px; margin-bottom: 8px; }
@@ -202,6 +234,10 @@ class MagmariumCard extends HTMLElement {
     return { center: "home", zoom: 2.4 };
   }
 
+  static getConfigElement() {
+    return document.createElement("magmarium-card-editor");
+  }
+
   setConfig(config) {
     this._config = {
       title: "Magmarium",
@@ -212,6 +248,9 @@ class MagmariumCard extends HTMLElement {
       show_all: true,
       weekly_ash: true,
       wind_tracks: true,
+      ash_areas: true,
+      quakes: true,
+      replay: true,
       labels: true,
       ...(config || {}),
     };
@@ -267,7 +306,13 @@ class MagmariumCard extends HTMLElement {
             <button class="home" title="Back to start view">${svg(ICONS.home)}</button>
             <button class="world" title="Whole globe">${svg(ICONS.globe)}</button>
             <button class="rot" title="Rotate">${svg(ICONS.rotate)}</button>
+            <button class="hist" title="Replay the last 90 days">${svg(ICONS.history)}</button>
             <button class="full" title="Fullscreen">${svg(ICONS.full)}</button>
+          </div>
+          <div class="replay">
+            <button class="rplay" title="Play">${svg(ICONS.play)}</button>
+            <input class="rrange" type="range" min="0" max="1000" step="1" value="1000">
+            <div class="when"><b class="rdate"></b><br><span class="rsum"></span></div>
           </div>
           <div class="info hidden"></div>
         </div>
@@ -322,6 +367,20 @@ class MagmariumCard extends HTMLElement {
       this._rotBtn.classList.toggle("on", this._rotate);
       this._lastInput = 0;
     });
+    this._histBtn = $(".hist");
+    this._histBtn.style.display = this._config.replay === false ? "none" : "";
+    this._histBtn.addEventListener("click", () => this._toggleReplay());
+    this._rPlay = $(".rplay");
+    this._rRange = $(".rrange");
+    this._rDate = $(".rdate");
+    this._rSum = $(".rsum");
+    this._rPlay.addEventListener("click", () => this._setPlaying(!this._replay?.playing));
+    this._rRange.addEventListener("input", () => {
+      if (!this._replay) return;
+      this._setPlaying(false);
+      this._replay.t = this._replay.t0 + (this._replay.t1 - this._replay.t0) * (Number(this._rRange.value) / 1000);
+      this._replayState(true);
+    });
     this._fullBtn = $(".full");
     this._fullBtn.addEventListener("click", () => this._toggleFull());
     this._onFullChange = () => this._syncFull();
@@ -339,7 +398,6 @@ class MagmariumCard extends HTMLElement {
     fx.addEventListener("pointercancel", (e) => this._onUp(e, true));
     fx.addEventListener("wheel", (e) => this._onWheel(e), { passive: false });
     fx.addEventListener("dblclick", (e) => this._onDouble(e));
-
     this._ro = new ResizeObserver(() => this._resize());
     this._ro.observe(this._stage);
     this._io = new IntersectionObserver((entries) => {
@@ -578,7 +636,13 @@ class MagmariumCard extends HTMLElement {
       });
     this._catalog = (data.catalog || [])
       .filter((r) => Number.isFinite(r[2]) && Number.isFinite(r[3]))
-      .map((r) => ({ name: r[0], country: r[1], lat: r[2], lon: r[3], elev: r[4], number: r[5], p: ecef(r[2], r[3]) }));
+      .map((r) => ({ name: r[0], country: r[1], lat: r[2], lon: r[3], elev: r[4], number: r[5], wiki: r[6] || null, p: ecef(r[2], r[3]) }));
+    this._sigmets = (data.sigmets || [])
+      .filter((a) => Array.isArray(a.poly) && a.poly.length >= 3)
+      .map((a) => ({ ...a, pts: a.poly.map(([la, lo]) => ecef(la, lo)), c: ecef(a.poly.reduce((t, q) => t + q[0], 0) / a.poly.length, a.poly.reduce((t, q) => t + q[1], 0) / a.poly.length) }));
+    this._quakes = (data.quakes || []).map((q) => ({
+      lat: q[0], lon: q[1], mag: q[2], depth: q[3], time: q[4], place: q[5], url: q[6], volcano: q[7], p: ecef(q[0], q[1]), ms: new Date(q[4]).getTime(),
+    }));
 
     const keepPlumes = new Set();
     for (const v of this._volcanoes) {
@@ -733,7 +797,8 @@ class MagmariumCard extends HTMLElement {
     const bad = Object.entries(src).filter(([k, s]) => s.enabled && s.error && k !== "catalog");
     const updated = this._data?.updated ? rel(new Date(this._data.updated * 1000).toISOString()) : "";
     if (bad.length) {
-      const names = bad.map(([k]) => (k.startsWith("magma") ? "MAGMA" : k === "wind" ? "Wind data" : "Weekly report"));
+      const FEED_NAMES = { wind: "Wind data", usgs: "USGS", imo: "IMO", jma: "JMA", sigmet: "SIGMETs", quakes: "Earthquakes", wiki: "Wikipedia" };
+      const names = bad.map(([k]) => (k.startsWith("magma") ? "MAGMA" : FEED_NAMES[k] || "Weekly report"));
       this._legendSt.textContent = `${[...new Set(names)].join(", ")} not reachable · last data shown`;
       this._legendSt.classList.add("bad");
     } else {
@@ -941,13 +1006,17 @@ class MagmariumCard extends HTMLElement {
   _hitTest(x, y) {
     // volcanoes with a report win over quiet catalogue volcanoes nearby
     let best = null;
-    for (const kind of ["volcano", "catalog"]) {
+    for (const kind of ["volcano", "quake", "catalog"]) {
       for (const h of this._hits || []) {
         if (h.kind !== kind) continue;
         const d = Math.hypot(h.x - x, h.y - y);
         if (d <= h.r && (!best || d < best.d)) best = { ...h, d };
       }
       if (best) return best;
+    }
+    // official ash areas are large: a tap anywhere inside opens them
+    for (const h of this._hits || []) {
+      if (h.kind === "sigmet" && pointInPoly(x, y, h.pts)) return h;
     }
     return null;
   }
@@ -974,10 +1043,20 @@ class MagmariumCard extends HTMLElement {
     const alias = sel.kind === "volcano" && v.local && v.local !== v.name ? ` · GVP: ${esc(v.name)}` : "";
     parts.push(`<div class="where">${esc(where)}${alias}</div>`);
 
+    if (sel.kind === "quake") {
+      this._renderQuakeInfo(v, dist);
+      return;
+    }
+    if (sel.kind === "sigmet") {
+      this._renderSigmetInfo(v);
+      return;
+    }
     if (sel.kind !== "volcano") {
       parts.push(`<div class="line"><span class="ic">⛰</span><span class="tx">${v.elev != null ? `${fmtInt(v.elev)} m` : "Elevation unknown"}${dist != null ? ` · ${fmtInt(Math.round(dist))} km from home` : ""}</span></div>`);
       parts.push(`<div class="muted">No current activity report for this volcano.</div>`);
-      if (v.number) parts.push(`<div class="links"><a href="https://volcano.si.edu/volcano.cfm?vn=${encodeURIComponent(v.number)}" target="_blank" rel="noopener">Global Volcanism Program</a></div>`);
+      const cl = [`<a href="${esc(wikiUrl(v.wiki, v.name))}" target="_blank" rel="noopener">Wikipedia</a>`];
+      if (v.number) cl.push(`<a href="https://volcano.si.edu/volcano.cfm?vn=${encodeURIComponent(v.number)}" target="_blank" rel="noopener">Global Volcanism Program</a>`);
+      parts.push(`<div class="links">${cl.join("")}</div>`);
       this._info.innerHTML = parts.join("");
       this._info.classList.remove("hidden");
       this._info.querySelector(".x").addEventListener("click", () => {
@@ -993,10 +1072,16 @@ class MagmariumCard extends HTMLElement {
     if (v.color) badges.push(`<span class="badge soft">VONA ${esc(v.color)}</span>`);
     parts.push(`<div class="badges">${badges.join("")}</div>`);
 
+    if (v.official) {
+      const o = v.official;
+      parts.push(`<div class="line"><span class="ic">🏛</span><span class="tx">${esc(o.alert || "")}<div class="muted">${esc(OFFICIAL_NAMES[o.source] || o.source)}${o.time ? ` · ${esc(rel(o.time))}` : ""}</div></span></div>`);
+    }
     if (v.eruption) {
       const txt = v.eruption.source === "vona"
         ? `Eruption reported ${esc(rel(v.eruption.time))}`
-        : "Eruptive activity in the current weekly report";
+        : v.eruption.source === "sigmet"
+          ? "Ash eruption in an official SIGMET"
+          : "Eruptive activity in the current weekly report";
       parts.push(`<div class="line"><span class="ic">🔥</span><span class="tx">${txt}</span></div>`);
     }
     if (v.ash) {
@@ -1006,8 +1091,14 @@ class MagmariumCard extends HTMLElement {
       if (a.above_summit_m != null) bits.push(`${fmtInt(a.above_summit_m)} m above summit`);
       if (a.toward_deg != null) bits.push(`drifting ${compass(a.toward_deg)}`);
       if (a.intensity) bits.push(esc(a.intensity));
-      const when = a.source === "vona" ? `observed ${esc(rel(a.time))}` : "reported in the weekly report";
+      const when = a.source === "vona" ? `observed ${esc(rel(a.time))}` : a.source === "sigmet" ? "official ash area (SIGMET)" : "reported in the weekly report";
       parts.push(`<div class="line"><span class="ic">☁</span><span class="tx">Ash cloud${bits.length ? ` · ${bits.join(" · ")}` : ""}<div class="muted">${when}</div></span></div>`);
+    }
+    for (const sg of v.sigmets || []) {
+      parts.push(`<div class="line"><span class="ic">✈</span><span class="tx">Ash SIGMET ${esc(sg.fir || "")}${sg.top_m != null ? ` · up to ${fmtInt(sg.top_m)} m` : ""}<div class="muted">${sg.to ? `valid until ${esc(utc(sg.to))}` : ""}</div></span></div>`);
+    }
+    if (v.quakes_7d) {
+      parts.push(`<div class="line"><span class="ic">〰</span><span class="tx">${v.quakes_7d} earthquake${v.quakes_7d === 1 ? "" : "s"} within 30 km in 7 days${v.quake_max != null ? ` · strongest M${v.quake_max}` : ""}<div class="muted">USGS; small volcanic quakes are often not in this catalogue</div></span></div>`);
     }
     if (v.wind) {
       const w = v.wind;
@@ -1036,6 +1127,8 @@ class MagmariumCard extends HTMLElement {
     if (n && n.url && n.kind === "vona") links.push(`<a href="${esc(n.url)}" target="_blank" rel="noopener">VONA notice</a>`);
     if (v.report) links.push(`<a href="${esc(v.report)}" target="_blank" rel="noopener">MAGMA report</a>`);
     if (v.weekly) links.push(`<a href="https://volcano.si.edu/reports_weekly.cfm" target="_blank" rel="noopener">Weekly report</a>`);
+    if (v.official && v.official.url) links.push(`<a href="${esc(v.official.url)}" target="_blank" rel="noopener">${esc(OFFICIAL_NAMES[v.official.source] || "Official notice")}</a>`);
+    links.push(`<a href="${esc(wikiUrl(v.wiki, v.name))}" target="_blank" rel="noopener">Wikipedia</a>`);
     if (v.number) links.push(`<a href="https://volcano.si.edu/volcano.cfm?vn=${encodeURIComponent(v.number)}" target="_blank" rel="noopener">Global Volcanism Program</a>`);
     if (links.length) parts.push(`<div class="links">${links.join("")}</div>`);
 
@@ -1045,6 +1138,156 @@ class MagmariumCard extends HTMLElement {
       this._selected = null;
       this._renderInfo();
     });
+  }
+
+  _infoShell(title, where, body) {
+    this._info.innerHTML = `<button class="x" title="Close">${svg(ICONS.close)}</button><h3>${esc(title)}</h3><div class="where">${esc(where)}</div>${body}`;
+    this._info.classList.remove("hidden");
+    this._info.querySelector(".x").addEventListener("click", () => {
+      this._selected = null;
+      this._renderInfo();
+    });
+  }
+
+  _renderQuakeInfo(q, dist) {
+    const lines = [];
+    lines.push(`<div class="line"><span class="ic">〰</span><span class="tx">Magnitude ${q.mag}${q.depth != null ? ` · depth ${q.depth} km` : ""}<div class="muted">${esc(utc(q.time))} (${esc(rel(q.time))})</div></span></div>`);
+    if (q.volcano) lines.push(`<div class="line"><span class="ic">⛰</span><span class="tx">Within 30 km of ${esc(q.volcano)}</span></div>`);
+    if (dist != null) lines.push(`<div class="line"><span class="ic">📍</span><span class="tx">${fmtInt(Math.round(dist))} km from home</span></div>`);
+    if (q.url) lines.push(`<div class="links"><a href="${esc(q.url)}" target="_blank" rel="noopener">USGS event page</a></div>`);
+    this._infoShell("Earthquake", q.place || "", lines.join(""));
+  }
+
+  _renderSigmetInfo(a) {
+    const lines = [];
+    const vol = a.volcano ? `Ash from ${esc(a.volcano)}` : "Volcanic ash";
+    const bits = [];
+    if (a.base_m != null && a.top_m != null) bits.push(`${fmtInt(a.base_m)} to ${fmtInt(a.top_m)} m`);
+    if (a.toward_deg != null) bits.push(`moving ${compass(a.toward_deg)}${a.speed_kmh ? ` at ${a.speed_kmh} km/h` : ""}`);
+    lines.push(`<div class="line"><span class="ic">✈</span><span class="tx">${vol}${bits.length ? ` · ${bits.join(" · ")}` : ""}<div class="muted">${a.from ? `from ${esc(utc(a.from))} ` : ""}${a.to ? `until ${esc(utc(a.to))}` : ""}</div></span></div>`);
+    if (a.raw) lines.push(`<div class="notice"><div class="muted">SIGMET text</div>${esc(a.raw)}</div>`);
+    lines.push(`<div class="muted" style="margin-top:8px">Official volcanic ash area for aviation, issued by the meteorological watch office of the flight information region.</div>`);
+    lines.push(`<div class="links"><a href="https://aviationweather.gov/gfa/#sigmet" target="_blank" rel="noopener">AviationWeather.gov</a></div>`);
+    this._infoShell("Volcanic ash SIGMET", a.fir || "", lines.join(""));
+  }
+
+  // ------------------------------------------------------------------ replay
+
+  async _toggleReplay() {
+    if (this._replay) {
+      this._replay = null;
+      this._stage.classList.remove("replaying");
+      this._histBtn.classList.remove("on");
+      this._loop();
+      return;
+    }
+    this._histBtn.classList.add("on");
+    if (!this._history) {
+      try {
+        const resp = await this._hass.fetchWithAuth("/api/magmarium/history");
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        this._history = await resp.json();
+      } catch (err) {
+        this._histBtn.classList.remove("on");
+        this._msg.textContent = `History not available (${err.message})`;
+        setTimeout(() => (this._msg.textContent = ""), 4000);
+        return;
+      }
+    }
+    const events = (this._history.events || []).map((e) => ({ ...e, ms: new Date(e.t).getTime(), p: ecef(e.lat, e.lon) }));
+    const t1 = Date.now();
+    const t0 = t1 - (this._history.days || 90) * 24 * HOUR;
+    this._replay = { events, t0, t1, t: t0, playing: false, plumes: new Map(), ejecta: new Map(), vols: [], lastT: null };
+    this._stage.classList.add("replaying");
+    if (this._selected) {
+      this._selected = null;
+      this._renderInfo();
+    }
+    this._replayState(true);
+    this._setPlaying(true);
+  }
+
+  _setPlaying(on) {
+    if (!this._replay) return;
+    if (on && this._replay.t >= this._replay.t1 - HOUR) this._replay.t = this._replay.t0;
+    this._replay.playing = on;
+    this._rPlay.innerHTML = svg(on ? ICONS.pause : ICONS.play);
+    this._rPlay.title = on ? "Pause" : "Play";
+    this._loop();
+  }
+
+  /** volcano state at the replay time: eruptions of the last 24 h, ash clouds of the last 4 h */
+  _replayState(force) {
+    const r = this._replay;
+    if (!r) return;
+    if (!force && r.lastT != null && Math.abs(r.t - r.lastT) < 0.25 * HOUR) return;
+    r.lastT = r.t;
+    const from = r.t - 24 * HOUR;
+    const byId = new Map();
+    for (const e of r.events) {
+      if (e.ms > r.t) break;
+      if (e.ms < from) continue;
+      let st = byId.get(e.id);
+      if (!st) {
+        st = { e, erupt: 0, ash: null, n: 0 };
+        byId.set(e.id, st);
+      }
+      st.e = e;
+      st.n += 1;
+      const ageH = (r.t - e.ms) / HOUR;
+      if (e.eruption) st.erupt = Math.max(st.erupt, Math.max(0.4, 1 - ageH / 24 * 0.6));
+      if (e.ash && ageH <= 4) st.ash = { e, ageH };
+      else if (!e.ash && st.ash && e.ms > st.ash.e.ms) st.ash = null;
+    }
+    const current = new Map(this._volcanoes.map((v) => [v.id, v]));
+    const vols = [];
+    const keepP = new Set();
+    const keepE = new Set();
+    let eruptions = 0;
+    let clouds = 0;
+    for (const [id, st] of byId) {
+      const base = current.get(id);
+      const e = st.e;
+      const colorLevel = { GREEN: 1, YELLOW: 2, ORANGE: 3, RED: 4 }[String(e.color || "").toUpperCase()] || 2;
+      const v = {
+        ...(base || { id, name: e.name, local: e.name, lat: e.lat, lon: e.lon, elev: e.elev, p: e.p, country: "Indonesia" }),
+        level: colorLevel,
+        erupt: st.erupt,
+        erupting: st.erupt > 0,
+        ash: st.ash ? { source: "vona" } : null,
+        wind: null,
+      };
+      vols.push(v);
+      if (st.erupt > 0) eruptions += 1;
+      if (st.ash) {
+        clouds += 1;
+        keepP.add(id);
+        const ash = {
+          source: "vona",
+          intensity: st.ash.e.intensity,
+          color: st.ash.e.ash_color,
+          top_m: st.ash.e.top_m,
+          above_summit_m: st.ash.e.above_summit_m,
+          toward_deg: st.ash.e.toward_deg,
+          elev: v.elev,
+          strength: Math.max(0.3, 1 - 0.7 * st.ash.ageH / 4),
+        };
+        const pl = r.plumes.get(id);
+        if (pl) pl.update(ash);
+        else r.plumes.set(id, new AshPlume(id, ash));
+      }
+      if (st.erupt > 0 && (r.t - e.ms) / HOUR <= 6 && e.eruption) {
+        keepE.add(id);
+        if (!r.ejecta.has(id)) r.ejecta.set(id, new Ejecta(id));
+      }
+    }
+    for (const id of [...r.plumes.keys()]) if (!keepP.has(id)) r.plumes.delete(id);
+    for (const id of [...r.ejecta.keys()]) if (!keepE.has(id)) r.ejecta.delete(id);
+    r.vols = vols;
+    const d = new Date(r.t);
+    this._rDate.textContent = d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+    this._rSum.textContent = `${eruptions} erupting · ${clouds} ash cloud${clouds === 1 ? "" : "s"} · VONA, Indonesia`;
+    this._rRange.value = String(Math.round(((r.t - r.t0) / (r.t1 - r.t0)) * 1000));
   }
 
   // ------------------------------------------------------------------ animation
@@ -1123,8 +1366,16 @@ class MagmariumCard extends HTMLElement {
       this._earthLow = false;
     }
 
-    for (const p of this._plumes.values()) p.step(dt);
-    for (const e of this._ejecta.values()) e.step(dt, this._t);
+    const rp = this._replay;
+    if (rp && rp.playing) {
+      rp.t = Math.min(rp.t1, rp.t + dt * REPLAY_HOURS_PER_SECOND * HOUR);
+      this._replayState(false);
+      if (rp.t >= rp.t1) this._setPlaying(false);
+    }
+    const plumes = rp ? rp.plumes : this._plumes;
+    const ejecta = rp ? rp.ejecta : this._ejecta;
+    for (const p of plumes.values()) p.step(dt);
+    for (const e of ejecta.values()) e.step(dt, this._t);
     this._drawFx();
   }
 
@@ -1247,9 +1498,74 @@ class MagmariumCard extends HTMLElement {
       }
     }
 
+    const rp = this._replay;
+    const plumesMap = rp ? rp.plumes : this._plumes;
+    const ejectaMap = rp ? rp.ejecta : this._ejecta;
+
+    // official volcanic ash areas (SIGMETs)
+    if (!rp && this._config.ash_areas !== false && this._filter !== "elevated") {
+      for (const a of this._sigmets || []) {
+        const pts = a.pts.map((q) => this._project(q, G, R));
+        if (pts.every((q) => q.z <= 0.02)) continue;
+        const sel = this._selected && this._selected.kind === "sigmet" && this._selected.v === a;
+        const pulse = 0.5 + 0.5 * Math.sin(t * 1.6);
+        ctx.save();
+        ctx.beginPath();
+        pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)));
+        ctx.closePath();
+        ctx.fillStyle = `rgba(150,130,120,${(sel ? 0.34 : 0.2) + 0.06 * pulse})`;
+        ctx.fill();
+        ctx.setLineDash([5, 4]);
+        ctx.lineDashOffset = -t * 6;
+        ctx.strokeStyle = sel ? "rgba(255,190,120,0.95)" : "rgba(235,215,195,0.75)";
+        ctx.lineWidth = sel ? 2 : 1.3;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const c = this._project(a.c, G, R);
+        if (c.z > 0.05 && zoom >= 2.2) {
+          ctx.font = "600 9.5px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = "rgba(240,228,214,0.85)";
+          ctx.fillText(`VA SIGMET${a.top_m != null ? ` · ${fmtInt(Math.round(a.top_m / 100) / 10)} km` : ""}`, c.x, c.y);
+          ctx.textAlign = "start";
+        }
+        ctx.restore();
+        hits.push({ kind: "sigmet", v: a, pts, x: c.x, y: c.y, r: 0 });
+      }
+    }
+
+    // earthquakes of the last 7 days: rings, volcanic ones in orange, fresh ones pulse
+    if (!rp && this._config.quakes !== false && this._filter === "all") {
+      const nowMs = Date.now();
+      for (const q of this._quakes || []) {
+        const pr = this._project(q.p, G, R);
+        if (pr.z <= 0.03 || pr.x < -20 || pr.x > W + 20 || pr.y < -20 || pr.y > H + 20) continue;
+        const ageH = (nowMs - q.ms) / HOUR;
+        const fade = clamp(1 - ageH / (7 * 24), 0.25, 1) * smooth(0.03, 0.15, pr.z);
+        const r0 = (1.2 + Math.max(0, q.mag - 2) * 1.5) * clamp(Math.pow(zoom, 0.4), 0.8, 2.2);
+        const col = q.volcano ? "255,150,60" : "150,190,255";
+        ctx.strokeStyle = `rgba(${col},${0.8 * fade})`;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(pr.x, pr.y, r0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = `rgba(${col},${0.35 * fade})`;
+        ctx.fill();
+        if (ageH < 6) {
+          const k = (t * 0.6 + (q.ms % 1000) / 1000) % 1;
+          ctx.strokeStyle = `rgba(${col},${(1 - k) * 0.7 * fade})`;
+          ctx.beginPath();
+          ctx.arc(pr.x, pr.y, r0 + k * r0 * 3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        hits.push({ kind: "quake", v: q, x: pr.x, y: pr.y, r: Math.max(8, r0 + 3) });
+      }
+    }
+
     // active volcanoes, back to front
     const items = [];
-    for (const v of this._volcanoes) {
+    for (const v of rp ? rp.vols : this._volcanoes) {
       if (!this._visibleByFilter(v)) continue;
       const pr = this._project(v.p, G, R);
       if (pr.z <= 0.02) continue;
@@ -1268,7 +1584,7 @@ class MagmariumCard extends HTMLElement {
         const w = v.wind;
         if (!w || !w.track || w.track.length < 2) continue;
         const sel = this._selected && this._selected.kind === "volcano" && this._selected.v.id === v.id;
-        if (!sel && !this._plumes.has(v.id)) continue;
+        if (!sel && !plumesMap.has(v.id)) continue;
         this._drawTrack(ctx, w, G, R, sel, t);
       }
     }
@@ -1295,9 +1611,9 @@ class MagmariumCard extends HTMLElement {
       const alpha = smooth(0.02, 0.18, pr.z);
       const night = smooth(0.08, -0.14, dot(v.p, sun));
       const craterY = pr.y - s * 1.45;
-      const ej = this._ejecta.get(v.id);
+      const ej = ejectaMap.get(v.id);
       if (ej) ej.draw(ctx, pr.x, craterY, s, night, alpha);
-      const plume = this._plumes.get(v.id);
+      const plume = plumesMap.get(v.id);
       if (plume) {
         const dir = plume.dirDeg != null ? this._screenDir(v, G, plume.dirDeg) : null;
         const pzf = clamp(Math.pow(zoom, 0.5), 0.9, 3.0);
@@ -1368,6 +1684,108 @@ class MagmariumCard extends HTMLElement {
   }
 }
 
+const EDITOR_SCHEMA = [
+  { name: "title", selector: { text: {} } },
+  {
+    name: "center",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "home", label: "Home" },
+          { value: "world", label: "Whole globe" },
+          { value: "ring_of_fire", label: "Ring of Fire" },
+          ...REGIONS.map(([key, label]) => ({ value: key, label })),
+        ],
+      },
+    },
+  },
+  {
+    type: "grid",
+    name: "",
+    schema: [
+      { name: "height", selector: { number: { min: 240, max: 1600, step: 20, unit_of_measurement: "px", mode: "box" } } },
+      { name: "zoom", selector: { number: { min: 0.8, max: 14, step: 0.1, mode: "box" } } },
+    ],
+  },
+  {
+    type: "grid",
+    name: "",
+    schema: [
+      { name: "regions", selector: { boolean: {} } },
+      { name: "labels", selector: { boolean: {} } },
+      { name: "show_all", selector: { boolean: {} } },
+      { name: "rotate", selector: { boolean: {} } },
+      { name: "weekly_ash", selector: { boolean: {} } },
+      { name: "wind_tracks", selector: { boolean: {} } },
+      { name: "ash_areas", selector: { boolean: {} } },
+      { name: "quakes", selector: { boolean: {} } },
+      { name: "replay", selector: { boolean: {} } },
+    ],
+  },
+];
+const EDITOR_LABELS = {
+  title: "Title",
+  center: "Start view",
+  height: "Height",
+  zoom: "Zoom (empty = automatic)",
+  regions: "Region buttons",
+  labels: "Volcano names",
+  show_all: "All known volcanoes",
+  rotate: "Slow rotation",
+  weekly_ash: "Ash from the weekly report",
+  wind_tracks: "Ash drift tracks (wind)",
+  ash_areas: "Official ash areas (SIGMET)",
+  quakes: "Earthquakes",
+  replay: "Replay button (90 days)",
+};
+
+class MagmariumCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    if (this._form) this._form.hass = hass;
+  }
+
+  _render() {
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (s) => EDITOR_LABELS[s.name] || s.name;
+      this._form.addEventListener("value-changed", (ev) => {
+        const value = { ...ev.detail.value };
+        for (const k of Object.keys(value)) if (value[k] === "" || value[k] == null) delete value[k];
+        this._config = value;
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: value }, bubbles: true, composed: true }));
+      });
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = EDITOR_SCHEMA;
+    this._form.data = {
+      center: "home",
+      regions: true,
+      labels: true,
+      show_all: true,
+      rotate: false,
+      weekly_ash: true,
+      wind_tracks: true,
+      ash_areas: true,
+      quakes: true,
+      replay: true,
+      ...this._config,
+      center: Array.isArray(this._config.center) ? "home" : this._config.center || "home",
+    };
+  }
+}
+
+if (!customElements.get("magmarium-card-editor")) {
+  customElements.define("magmarium-card-editor", MagmariumCardEditor);
+}
+
 if (!customElements.get("magmarium-card")) {
   customElements.define("magmarium-card", MagmariumCard);
   window.customCards = window.customCards || [];
@@ -1375,7 +1793,7 @@ if (!customElements.get("magmarium-card")) {
     type: "magmarium-card",
     name: "Magmarium",
     description: "Active volcanoes on a living globe with alert levels, eruptions and ash clouds.",
-    preview: false,
+    preview: true,
     documentationURL: "https://github.com/mb26-dev/ha-magmarium",
   });
   console.info(`%c MAGMARIUM %c ${VERSION} `, "background:#ff8a1f;color:#111;font-weight:700", "background:#222;color:#ffab4a");
