@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0b6 - 2026-11-17
+
+- Live cameras: tap a volcano and its newest official camera image is shown in the info panel, a tap opens the camera page
+- Sources, all official observatories only: USGS AshCam (all US volcano cameras, Alaska, Cascades, Hawaii), GeoNet New Zealand (Ruapehu, Tongariro, Taranaki, Whakaari, Raoul Island), Japan Meteorological Agency (links to the monitoring cameras of every observed volcano), MAGMA Indonesia (links to the CCTV pages, e.g. Semeru, Bromo, Ijen, Anak Krakatau, Sinabung)
+- Cameras also for quiet volcanoes from the catalogue
+- Watched volcano sensors get `camera_image` and `cameras`
+- New card option `cams`
+
 ## 0.1.0b5 - 2026-11-17
 
 - New logo and icon: the volcano emblem in its glowing ring with the Magmarium wordmark, in the integration list, the store and the README

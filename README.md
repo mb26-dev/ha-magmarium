@@ -40,6 +40,7 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 - **Earthquakes** of the last 7 days as rings, orange near a volcano, fresh ones pulse
 - **Replay:** one button plays the eruptions and ash clouds of the last 90 days (VONA, Indonesia) on the globe
 - **Wikipedia link** for every volcano, matched by its Smithsonian number through Wikidata
+- **Live cameras:** the newest image of the official observatory camera right in the info panel (USGS, GeoNet), links to the camera pages of the Japan Meteorological Agency and to the MAGMA Indonesia CCTV
 - **Visual card editor**, no YAML needed
 - **Ash drift simulation:** forecast winds at the height of the ash cloud (Open-Meteo) turn plumes without a reported direction and draw a dashed track of where the ash would drift in the next 6 hours
 - **Fullscreen button**, also on phones and in the app (full window where the browser has no fullscreen)
@@ -117,6 +118,7 @@ wind_tracks: true      # dashed 6 hour ash drift tracks from forecast winds
 ash_areas: true        # official volcanic ash areas (SIGMETs)
 quakes: true           # earthquakes of the last 7 days
 replay: true           # replay button for the last 90 days
+cams: true             # live camera images of the observatories
 labels: true
 ```
 
@@ -203,6 +205,7 @@ A star on GitHub, a bug report or a screenshot of your dashboard helps just as m
 - Volcanic ash SIGMETs: [AviationWeather.gov](https://aviationweather.gov) (NOAA Aviation Weather Center)
 - Earthquakes: [USGS Earthquake Hazards Program](https://earthquake.usgs.gov)
 - Wikipedia links: [Wikidata](https://www.wikidata.org) (CC0)
+- Volcano cameras: [USGS Volcano Hazards Program AshCam](https://avo-volcview.wr.usgs.gov/ashcam-gui/webcam.html), [GeoNet / GNS Science](https://www.geonet.org.nz/volcano/cameras), [Japan Meteorological Agency](https://www.data.jma.go.jp/vois/data/obs/volcam/volcam.php), [MAGMA Indonesia](https://magma.esdm.go.id/v1/gunung-api/cctv)
 - Winds aloft: [Open-Meteo](https://open-meteo.com) (CC BY 4.0)
 - Earth imagery: NASA Earth Observatory, [Blue Marble Next Generation](https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/) by Reto Stöckli and [Black Marble 2016](https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps)
 - Volcano, lava and ash drawings are original artwork rendered in the card
