@@ -43,6 +43,14 @@ def test_jma_cams():
     assert len(rows) == 1 and rows[0]["page"].endswith("VC=50501") and rows[0]["lat"] == 31.931
 
 
+def test_jma_cams_single_quotes():
+    # the real JMA page writes href='...'
+    page = "<li><a href='./volcam.php?VC=50601'>桜島 牛根</a></li>"
+    vlist = json.dumps([{"code": "506", "latlon": ["31.593", "130.657"]}])
+    rows = cams.parse_jma_cams(page, vlist)
+    assert len(rows) == 1 and rows[0]["page"].endswith("VC=50601") and rows[0]["name"] == "桜島 牛根"
+
+
 def test_magma_cctv():
     page = ('<a href="https://magma.esdm.go.id/v1/gunung-api/cctv/SMR" type="button" class="btn">Semeru (5)</a>'
             '<a href="https://magma.esdm.go.id/v1/gunung-api/cctv/AWU" class="btn">Awu (1)</a>')
