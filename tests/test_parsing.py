@@ -198,6 +198,13 @@ def test_matching() -> None:
     assert parsing.fallback_row("Anak Krakatau")[1] == "Krakatau"
 
 
+def test_tidy_notice():
+    assert parsing.tidy_notice(
+        "Eruption at 1218 UTC (1918 local). Ash-cloud is not observed. Ash-cloud is not observed."
+    ) == "Eruption at 12:18 UTC (19:18 local). Ash-cloud is not observed."
+    assert parsing.tidy_notice("Top around 6989 FT (2184 M) above sea level.") == "Top around 6989 FT (2184 M) above sea level."
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
