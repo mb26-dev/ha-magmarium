@@ -20,8 +20,6 @@ Active volcanoes on a living globe for Home Assistant. Magmarium shows **every v
 
 It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, adds **official alert levels from the USGS, the Icelandic Met Office and the Japan Meteorological Agency**, the **official volcanic ash areas for aviation (SIGMETs)** worldwide, **earthquakes** from the USGS and the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account.
 
-> **Beta.** Magmarium 0.1 is the first public test version. Feedback and bug reports are very welcome.
-
 ## Features
 
 **Lovelace card** `custom:magmarium-card` (installed and registered automatically)
@@ -74,7 +72,7 @@ The integration is translated into English and German.
 
    [![Open your Home Assistant instance and open Magmarium in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mb26-dev&repository=ha-magmarium&category=integration)
 
-2. Download **Magmarium** (switch on *Show beta versions* for the 0.1 beta) and restart Home Assistant
+2. Download **Magmarium** and restart Home Assistant
 3. **Settings → Devices & services → Add integration → Magmarium**, or use this button:
 
    [![Open your Home Assistant instance and start setting up Magmarium.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=magmarium)

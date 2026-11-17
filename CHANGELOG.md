@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0 - 2026-11-18
+
+First stable release. Everything from the betas, tested in daily use:
+
+- Globe with NASA day and night imagery, animated volcanoes in the colour of their official alert level, glowing craters, lava and ash plumes that follow the reported height and direction
+- Official alert levels: MAGMA Indonesia, USGS, Icelandic Met Office, Japan Meteorological Agency; the Smithsonian / USGS weekly report for the rest of the world
+- Official volcanic ash areas (SIGMETs) with their forecast position, earthquakes near volcanoes, ash drift simulation from forecast winds
+- "Ash near <place>" binary sensors for your zones, blueprints for alert changes and ash near a place
+- 90-day replay, region buttons, fullscreen, visual card editor
+- Official live cameras (USGS, GeoNet) and camera links (JMA, MAGMA Indonesia), Wikipedia link for every volcano
+- Fixed in this release: the camera links of the Japan Meteorological Agency were not found (the page uses single quotes in its links); a camera list that cannot be loaded is now logged as a warning
+
 ## 0.1.0b9 - 2026-11-17
 
 - Wikipedia links of volcanoes with accents or special characters in the article title work again (e.g. Volcán de Fuego, Bárðarbunga, Eyjafjallajökull): the title was encoded twice
