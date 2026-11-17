@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0b2 - 2026-11-17
+
+- Region buttons in the card: one tap turns the globe to Indonesia, the Philippines, Japan, Kamchatka, Alaska, the Cascades, Hawaii, Central America, the Caribbean, the Andes, Iceland, the Azores and Canaries, the Mediterranean, East Africa, PNG and Vanuatu or New Zealand and Tonga
+- Each region button shows its number of active volcanoes and the colour of its highest alert level
+- New option `regions`: `false` hides the buttons, a list picks and orders them; every region key also works as `center`
+- Quiet volcanoes grow with the zoom and get muted name labels in a zoomed-in region
+- Chip rows scroll with the mouse wheel and by dragging on desktop
+
 ## 0.1.0b1 - 2026-11-17
 
 First beta.
