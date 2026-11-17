@@ -147,6 +147,26 @@ _LINK = re.compile(r'<a class="card-link[^"]*"\s+href="([^"]+)"', re.IGNORECASE)
 _VONA_ID = re.compile(r"/vona/(\d+)")
 
 
+_HHMM = re.compile(r"\b([01]\d|2[0-3])([0-5]\d)(\s*(?:UTC|UT|local|LT|WIB|WITA|WIT)\b)")
+_SENTENCE = re.compile(r"(?<=[.!?])\s+")
+
+
+def tidy_notice(text: str) -> str:
+    """Readable notice text: "1218 UTC" becomes "12:18 UTC", repeated sentences are dropped."""
+    if not text:
+        return text
+    text = _HHMM.sub(lambda m: f"{m.group(1)}:{m.group(2)}{m.group(3)}", text)
+    seen: set[str] = set()
+    out: list[str] = []
+    for sentence in _SENTENCE.split(text.strip()):
+        key = re.sub(r"[^a-z0-9]+", " ", sentence.lower()).strip()
+        if key and key in seen:
+            continue
+        seen.add(key)
+        out.append(sentence)
+    return " ".join(out)
+
+
 def parse_vona_list(page: str) -> list[dict[str, Any]]:
     """Parse the public MAGMA VONA list (https://magma.esdm.go.id/v1/vona).
 
@@ -176,7 +196,7 @@ def parse_vona_list(page: str) -> list[dict[str, Any]]:
         url = html.unescape(link_m.group(1)) if link_m else None
         id_m = _VONA_ID.search(url or "")
         text = clean_text(text_m.group(1)) if text_m else ""
-        text = re.sub(r"\.{2,}$", ".", text)
+        text = tidy_notice(re.sub(r"\.{2,}$", ".", text))
         items.append({
             "name": name.strip(),
             "issued": issued,

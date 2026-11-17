@@ -13,6 +13,7 @@ from .parsing import (
     haversine_km,
     match_catalog,
     normalize_name,
+    tidy_notice,
 )
 
 LEVEL_KEYS = {0: "unknown", 1: "normal", 2: "advisory", 3: "watch", 4: "warning"}
@@ -164,7 +165,7 @@ def build_volcanoes(
             vol["notice"] = {
                 "kind": "vona",
                 "time": issued.isoformat(),
-                "text": v.get("text", ""),
+                "text": tidy_notice(v.get("text", "")),
                 "color": v.get("color"),
                 "url": v.get("url"),
                 "source": "MAGMA Indonesia (PVMBG)",
@@ -176,7 +177,7 @@ def build_volcanoes(
                     "local_name": v["name"],
                     "time": issued.isoformat(),
                     "color": v.get("color"),
-                    "text": v.get("text", ""),
+                    "text": tidy_notice(v.get("text", "")),
                     "url": v.get("url"),
                     "ash": info["ash"],
                     "ash_top_m": info["top_m"],
