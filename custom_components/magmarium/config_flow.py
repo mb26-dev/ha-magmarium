@@ -9,6 +9,11 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    EntitySelector,
+    EntitySelectorConfig,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -17,8 +22,12 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    CONF_PLACES,
+    CONF_RADIUS,
     CONF_SOURCES,
     CONF_WATCHED,
+    DEFAULT_PLACES,
+    DEFAULT_RADIUS,
     DEFAULT_SOURCES,
     DEFAULT_WATCHED,
     DOMAIN,
@@ -38,6 +47,12 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
                 )
             ),
             vol.Optional(CONF_WATCHED, default=defaults.get(CONF_WATCHED, DEFAULT_WATCHED)): TextSelector(),
+            vol.Optional(CONF_PLACES, default=defaults.get(CONF_PLACES, DEFAULT_PLACES)): EntitySelector(
+                EntitySelectorConfig(domain="zone", multiple=True)
+            ),
+            vol.Optional(CONF_RADIUS, default=defaults.get(CONF_RADIUS, DEFAULT_RADIUS)): NumberSelector(
+                NumberSelectorConfig(min=10, max=2000, step=10, unit_of_measurement="km", mode=NumberSelectorMode.BOX)
+            ),
         }
     )
 
@@ -52,7 +67,7 @@ def _validate(user_input: dict[str, Any]) -> dict[str, str]:
 class MagmariumConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the initial setup."""
 
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         await self.async_set_unique_id(DOMAIN)

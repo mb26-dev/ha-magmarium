@@ -23,6 +23,7 @@ from .const import (
     DOMAIN,
     URL_EARTH,
     URL_FRONTEND,
+    URL_HISTORY,
     URL_VOLCANOES,
     VERSION,
 )
@@ -31,7 +32,7 @@ from .data import MagmariumData
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -46,6 +47,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     add_extra_js_url(hass, f"{URL_FRONTEND}/{CARD_FILE}?v={VERSION}")
     hass.http.register_view(MagmariumVolcanoView())
     hass.http.register_view(MagmariumEarthView())
+    hass.http.register_view(MagmariumHistoryView())
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Version 2 adds the official alert levels, ash SIGMETs and earthquakes as sources."""
+    if entry.version == 1:
+        new_sources = ["official", "sigmet", "quakes"]
+        data = {**entry.data}
+        options = {**entry.options}
+        for store in (data, options):
+            if CONF_SOURCES in store:
+                store[CONF_SOURCES] = list(dict.fromkeys([*store[CONF_SOURCES], *new_sources]))
+        hass.config_entries.async_update_entry(entry, data=data, options=options, version=2)
+        _LOGGER.info("Magmarium settings migrated to version 2: new sources switched on")
     return True
 
 
@@ -105,6 +121,28 @@ class MagmariumVolcanoView(HomeAssistantView):
             headers["Content-Encoding"] = "gzip"
             return web.Response(body=data.payload_gzip, headers=headers)
         return web.Response(body=data.payload_json, headers=headers)
+
+
+class MagmariumHistoryView(HomeAssistantView):
+    """Serve the VONA events of the last months for the replay in the card."""
+
+    url = URL_HISTORY
+    name = "api:magmarium:history"
+    requires_auth = True
+
+    @callback
+    def get(self, request: web.Request) -> web.Response:
+        hass: HomeAssistant = request.app[KEY_HASS]
+        data: MagmariumData | None = hass.data.get(DOMAIN, {}).get("data")
+        if data is None:
+            return web.json_response({"error": "Magmarium is not configured"}, status=404)
+        if data.history_json is None or data.history_gzip is None:
+            return web.json_response({"error": "History not built yet"}, status=503)
+        headers = {"Cache-Control": "no-cache", "Content-Type": "application/json"}
+        if "gzip" in request.headers.get("Accept-Encoding", ""):
+            headers["Content-Encoding"] = "gzip"
+            return web.Response(body=data.history_gzip, headers=headers)
+        return web.Response(body=data.history_json, headers=headers)
 
 
 class MagmariumEarthView(HomeAssistantView):

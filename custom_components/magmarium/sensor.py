@@ -42,7 +42,7 @@ def _short(vol: dict[str, Any]) -> dict[str, Any]:
         "alert": vol.get("alert"),
         "aviation_color": vol.get("aviation_color"),
         "erupting": vol["erupting"],
-        "ash_cloud": bool(vol.get("ash") and vol["ash"].get("source") == "vona"),
+        "ash_cloud": bool(vol.get("ash") and vol["ash"].get("source") in ("vona", "sigmet")),
     }
 
 
@@ -56,6 +56,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         NearestSensor(coordinator, entry),
         LatestVonaSensor(coordinator, entry),
         StatusSensor(coordinator, entry),
+        SigmetSensor(coordinator, entry),
+        QuakeSensor(coordinator, entry),
     ]
     for name in parse_watched(options.get(CONF_WATCHED, DEFAULT_WATCHED)):
         entities.append(VolcanoSensor(coordinator, entry, name))
@@ -159,6 +161,77 @@ class AshCloudSensor(MagmariumEntity, SensorEntity):
             "weekly_report": [
                 v["name"] for v in (self.coordinator.data or {}).get("volcanoes", [])
                 if v.get("ash") and v["ash"].get("source") == "weekly"
+            ],
+        }
+
+
+class SigmetSensor(MagmariumEntity, SensorEntity):
+    """Valid volcanic ash SIGMETs: official ash areas for aviation."""
+
+    _attr_translation_key = "sigmets"
+    _attr_icon = "mdi:airplane-alert"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "areas"
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "sigmets")
+
+    @property
+    def native_value(self) -> int:
+        return len((self.coordinator.data or {}).get("sigmets") or [])
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "areas": [
+                {
+                    "volcano": s.get("volcano"),
+                    "fir": s.get("fir"),
+                    "valid_until": s.get("to"),
+                    "top_m": s.get("top_m"),
+                    "moving_deg": s.get("toward_deg"),
+                    "speed_kmh": s.get("speed_kmh"),
+                }
+                for s in ((self.coordinator.data or {}).get("sigmets") or [])[:MAX_LIST]
+            ]
+        }
+
+
+class QuakeSensor(MagmariumEntity, SensorEntity):
+    """Earthquakes of the last 7 days within 30 km of a volcano (USGS)."""
+
+    _attr_translation_key = "volcanic_quakes"
+    _attr_icon = "mdi:pulse"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "quakes"
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "volcanic_quakes")
+
+    def _list(self) -> list[dict[str, Any]]:
+        return [q for q in (self.coordinator.data or {}).get("quakes") or [] if q.get("volcano")]
+
+    @property
+    def native_value(self) -> int:
+        return len(self._list())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        quakes = self._list()
+        all_quakes = (self.coordinator.data or {}).get("quakes") or []
+        return {
+            "all_quakes_7d": len(all_quakes),
+            "strongest": max((q["mag"] for q in quakes), default=None),
+            "quakes": [
+                {
+                    "volcano": q["volcano"],
+                    "magnitude": q["mag"],
+                    "depth_km": q["depth_km"],
+                    "distance_km": q["volcano_km"],
+                    "time": q["time"],
+                    "place": q["place"],
+                }
+                for q in quakes[:MAX_LIST]
             ],
         }
 
@@ -307,7 +380,9 @@ class VolcanoSensor(MagmariumEntity, SensorEntity):
             "aviation_color": vol.get("aviation_color"),
             "erupting": vol["erupting"],
             "eruption_time": (vol.get("eruption") or {}).get("time"),
-            "ash_cloud": ash.get("source") == "vona",
+            "ash_cloud": ash.get("source") in ("vona", "sigmet"),
+            "ash_source": ash.get("source"),
+            "ash_sigmets": len(vol.get("sigmets") or []),
             "ash_top_m": ash.get("top_m"),
             "ash_above_summit_m": ash.get("above_summit_m"),
             "ash_moving_to": ash.get("toward"),
@@ -316,6 +391,9 @@ class VolcanoSensor(MagmariumEntity, SensorEntity):
             "notice_text": notice.get("text"),
             "source": notice.get("source"),
             "url": notice.get("url") or vol.get("report_url"),
+            "official_alert": (vol.get("official") or {}).get("alert"),
+            "quakes_7d": vol.get("quakes_7d") or 0,
+            "wikipedia": f"https://en.wikipedia.org/wiki/{vol['wiki']}" if vol.get("wiki") else None,
             "elevation_m": vol.get("elevation"),
             "latitude": vol["lat"],
             "longitude": vol["lon"],
