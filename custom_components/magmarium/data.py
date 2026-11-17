@@ -33,22 +33,47 @@ from .const import (
     GVP_CATALOG_URL_FULL,
     GVP_WEEKLY_MINUTES,
     GVP_WEEKLY_URL,
+    HISTORY_DAYS,
     MAGMA_LEVEL_MINUTES,
     MAGMA_LEVEL_URL,
     MAGMA_VONA_MINUTES,
     MAGMA_VONA_URL,
+    OFFICIAL_MINUTES,
     ORBITARIUM_EARTH_DIR,
+    QUAKE_MINUTES,
+    SIGMET_MINUTES,
     SOURCE_DOWN_HOURS,
     SOURCE_GVP_WEEKLY,
     SOURCE_LABELS,
     SOURCE_MAGMA,
+    SOURCE_OFFICIAL,
+    SOURCE_QUAKES,
+    SOURCE_SIGMET,
     STORAGE_KEY,
     STORAGE_VERSION,
     VERSION,
     VONA_MAX_AGE_DAYS,
+    WIKI_DAYS,
     WIND_MINUTES,
 )
-from .model import build_volcanoes
+from .extra import (
+    IMO_URL,
+    JMA_LIST_URL,
+    JMA_WARNING_URL,
+    QUAKE_URLS,
+    SIGMET_URL,
+    USGS_URL,
+    WIKIDATA_URL,
+    choose_wiki,
+    mark_volcanic,
+    parse_imo,
+    parse_jma,
+    parse_quakes,
+    parse_sigmets,
+    parse_usgs,
+    parse_wikidata,
+)
+from .model import build_history, build_volcanoes
 from .parsing import parse_gvp_catalog, parse_gvp_weekly, parse_level_page, parse_vona_list
 from .wind import build_url as wind_url, parse_response as parse_wind, points_key, wind_for, wind_points
 
@@ -71,7 +96,17 @@ FEEDS = {
     "gvp_weekly": (SOURCE_GVP_WEEKLY, GVP_WEEKLY_MINUTES),
     "catalog": (None, CATALOG_DAYS * 24 * 60),
     "wind": (None, WIND_MINUTES),
+    "usgs": (SOURCE_OFFICIAL, OFFICIAL_MINUTES),
+    "imo": (SOURCE_OFFICIAL, OFFICIAL_MINUTES),
+    "jma": (SOURCE_OFFICIAL, OFFICIAL_MINUTES),
+    "sigmet": (SOURCE_SIGMET, SIGMET_MINUTES),
+    "quakes": (SOURCE_QUAKES, QUAKE_MINUTES),
+    "wiki": (None, WIKI_DAYS * 24 * 60),
 }
+# feeds read in the main loop, in this order
+MAIN_FEEDS = ("catalog", "wiki", "magma_levels", "magma_vona", "gvp_weekly", "usgs", "imo", "jma", "sigmet", "quakes")
+# repair issues are raised per source, for the feeds of that source
+REPAIR_SOURCES = (SOURCE_MAGMA, SOURCE_GVP_WEEKLY, SOURCE_OFFICIAL, SOURCE_SIGMET, SOURCE_QUAKES)
 
 
 class FeedError(Exception):
@@ -94,6 +129,14 @@ class MagmariumData:
         # winds aloft per volcano id, and the set of places they were fetched for
         self.wind: dict[str, dict[str, Any]] = {}
         self.wind_key: str = ""
+        # official alert levels per source, ash SIGMETs, earthquakes, Wikipedia titles per volcano number
+        self.official: dict[str, list[dict[str, Any]]] = {}
+        self.sigmets: list[dict[str, Any]] = []
+        self.quakes: list[dict[str, Any]] = []
+        self.wiki: dict[str, list[str]] = {}
+        self.history_json: bytes | None = None
+        self.history_gzip: bytes | None = None
+        self._history_key: str = ""
         # feed -> {"last_ok": ts, "last_attempt": ts, "retry_after": ts, "error": str|None, "failing_since": ts|None}
         self.feed_state: dict[str, dict[str, Any]] = {}
         self.result: dict[str, Any] = {"volcanoes": [], "catalog": [], "latest_vona": None}
@@ -120,6 +163,10 @@ class MagmariumData:
             self.weekly_published = stored.get("weekly_published")
             self.wind = stored.get("wind") or {}
             self.wind_key = stored.get("wind_key") or ""
+            self.official = stored.get("official") or {}
+            self.sigmets = stored.get("sigmets") or []
+            self.quakes = stored.get("quakes") or []
+            self.wiki = stored.get("wiki") or {}
             self.feed_state = stored.get("feeds") or {}
         await self.async_rebuild()
 
@@ -132,6 +179,10 @@ class MagmariumData:
             "weekly_published": self.weekly_published,
             "wind": self.wind,
             "wind_key": self.wind_key,
+            "official": self.official,
+            "sigmets": self.sigmets,
+            "quakes": self.quakes,
+            "wiki": self.wiki,
             "feeds": self.feed_state,
         })
 
@@ -168,6 +219,8 @@ class MagmariumData:
                 timeout=HTTP_TIMEOUT,
                 headers={"User-Agent": USER_AGENT, "Accept-Language": "en"},
             ) as resp:
+                if resp.status == 204:
+                    return b"" if binary else ""
                 if resp.status != 200:
                     raise FeedError(f"HTTP {resp.status}")
                 return await (resp.read() if binary else resp.text())
@@ -179,20 +232,13 @@ class MagmariumData:
         async with self._lock:
             now = time.time()
             changed = False
-            for feed in ("catalog", "magma_levels", "magma_vona", "gvp_weekly"):
+            for feed in MAIN_FEEDS:
                 if not self._enabled(feed):
                     continue
                 if not force and not self._due(feed, now):
                     continue
                 try:
-                    if feed == "catalog":
-                        await self._refresh_catalog()
-                    elif feed == "magma_levels":
-                        await self._refresh_levels()
-                    elif feed == "magma_vona":
-                        await self._refresh_vona()
-                    else:
-                        await self._refresh_weekly()
+                    await self._refresh_feed(feed)
                 except FeedError as err:
                     self._fail(feed, now, str(err))
                     continue
@@ -210,6 +256,41 @@ class MagmariumData:
                 await self._async_save()
             await self.async_rebuild()
             return changed
+
+    async def _refresh_feed(self, feed: str) -> None:
+        if feed == "catalog":
+            await self._refresh_catalog()
+        elif feed == "wiki":
+            text = await self._get(WIKIDATA_URL)
+            self.wiki = await self.hass.async_add_executor_job(parse_wikidata, text)
+        elif feed == "magma_levels":
+            await self._refresh_levels()
+        elif feed == "magma_vona":
+            await self._refresh_vona()
+        elif feed == "gvp_weekly":
+            await self._refresh_weekly()
+        elif feed == "usgs":
+            text = await self._get(USGS_URL)
+            self.official["usgs"] = await self.hass.async_add_executor_job(parse_usgs, text)
+        elif feed == "imo":
+            page = await self._get(IMO_URL)
+            rows = await self.hass.async_add_executor_job(parse_imo, page)
+            if not rows:
+                raise FeedError("no notifications found on the Icelandic Met Office page")
+            self.official["imo"] = rows
+        elif feed == "jma":
+            warning = await self._get(JMA_WARNING_URL)
+            vlist = await self._get(JMA_LIST_URL)
+            self.official["jma"] = await self.hass.async_add_executor_job(parse_jma, warning, vlist)
+        elif feed == "sigmet":
+            text = await self._get(SIGMET_URL)
+            if not text.strip():
+                self.sigmets = []  # no volcanic ash SIGMET in force anywhere
+            else:
+                self.sigmets = await self.hass.async_add_executor_job(parse_sigmets, text, datetime.now(timezone.utc))
+        elif feed == "quakes":
+            texts = [await self._get(url) for url in QUAKE_URLS]
+            self.quakes = await self.hass.async_add_executor_job(parse_quakes, texts)
 
     async def _refresh_wind(self, now: float, force: bool) -> bool:
         """Winds aloft for every volcano with ash or an eruption, hourly or when that set changes."""
@@ -302,7 +383,7 @@ class MagmariumData:
 
     def async_update_repairs(self) -> None:
         now = time.time()
-        for source in (SOURCE_MAGMA, SOURCE_GVP_WEEKLY):
+        for source in REPAIR_SOURCES:
             feeds = [f for f, (s, _) in FEEDS.items() if s == source]
             since = [
                 float((self.feed_state.get(f) or {}).get("failing_since") or 0)
@@ -330,6 +411,16 @@ class MagmariumData:
 
     def _rebuild(self) -> None:
         now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        official: list[dict[str, Any]] = []
+        if SOURCE_OFFICIAL in self.sources:
+            for key in ("usgs", "imo", "jma"):
+                official.extend(self.official.get(key) or [])
+        sigmets = (
+            [s for s in self.sigmets if not s.get("to") or s["to"] >= now_iso]
+            if SOURCE_SIGMET in self.sources
+            else []
+        )
         result = build_volcanoes(
             self.catalog,
             self.levels if SOURCE_MAGMA in self.sources else [],
@@ -338,21 +429,68 @@ class MagmariumData:
             now,
             ASH_LIVE_HOURS,
             ERUPTION_HOURS,
+            official,
+            sigmets,
         )
+        volcanoes = result["volcanoes"]
+        for v in volcanoes:
+            v["wind"] = wind_for(v, self.wind.get(v["id"]), now)
+            v["wiki"] = choose_wiki(self.wiki.get(str(v["number"])) if v.get("number") else None, v["name"], v.get("local_name"))
+
+        # earthquakes of the last 7 days, linked to the nearest volcano within 30 km
+        quakes: list[dict[str, Any]] = []
+        if SOURCE_QUAKES in self.sources and self.quakes:
+            week = (now - timedelta(days=7)).isoformat()
+            recent = [q for q in self.quakes if q["time"] >= week]
+            points = [(v["lat"], v["lon"], v.get("local_name") or v["name"], v["id"]) for v in volcanoes if v["lat"] is not None]
+            points += [(r[2], r[3], r[0], f"gvp:{r[5]}") for r in result["catalog"]]
+            quakes = mark_volcanic(recent, points)
+            counts: dict[str, list[float]] = {}
+            for q in quakes:
+                if q.get("volcano_key"):
+                    counts.setdefault(q["volcano_key"], []).append(q["mag"])
+            for v in volcanoes:
+                mags = counts.get(v["id"])
+                v["quakes_7d"] = len(mags) if mags else 0
+                v["quake_max"] = max(mags) if mags else None
+        result["quakes"] = quakes
         self.result = result
         self.updated = now.timestamp()
+        catalog_rows = [
+            [*r, choose_wiki(self.wiki.get(str(r[5])) if r[5] else None, r[0])]
+            for r in result["catalog"]
+        ]
         payload = {
             "version": VERSION,
             "updated": self.updated,
             "home": [self.hass.config.latitude, self.hass.config.longitude],
             "sources": self.source_status(),
             "weekly_published": self.weekly_published,
-            "volcanoes": [_card_volcano(v, wind_for(v, self.wind.get(v["id"]), now)) for v in result["volcanoes"] if v["lat"] is not None],
-            "catalog": result["catalog"],
+            "volcanoes": [_card_volcano(v) for v in volcanoes if v["lat"] is not None],
+            "catalog": catalog_rows,
+            "sigmets": result.get("sigmets") or [],
+            "quakes": [
+                [q["lat"], q["lon"], q["mag"], q["depth_km"], q["time"], q["place"], q["url"], q.get("volcano")]
+                for q in quakes
+            ],
         }
         raw = json.dumps(payload, separators=(",", ":")).encode()
         self.payload_json = raw
         self.payload_gzip = gzip.compress(raw, 6)
+        self._rebuild_history(now)
+
+    def _rebuild_history(self, now: datetime) -> None:
+        if SOURCE_MAGMA not in self.sources:
+            events: list[dict[str, Any]] = []
+        else:
+            key = f"{len(self.vonas)}|{self.vonas[0]['issued'] if self.vonas else ''}|{len(self.catalog)}|{now.date()}"
+            if key == self._history_key and self.history_json is not None:
+                return
+            self._history_key = key
+            events = build_history(self.catalog, self.vonas, now, HISTORY_DAYS)
+        raw = json.dumps({"days": HISTORY_DAYS, "events": events}, separators=(",", ":")).encode()
+        self.history_json = raw
+        self.history_gzip = gzip.compress(raw, 6)
 
     def source_status(self) -> dict[str, Any]:
         out: dict[str, Any] = {}
@@ -461,7 +599,7 @@ class MagmariumData:
         return body
 
 
-def _card_volcano(v: dict[str, Any], wind: dict[str, Any] | None = None) -> dict[str, Any]:
+def _card_volcano(v: dict[str, Any]) -> dict[str, Any]:
     """Trim a volcano for the card payload."""
     out = {
         "id": v["id"],
@@ -483,7 +621,12 @@ def _card_volcano(v: dict[str, Any], wind: dict[str, Any] | None = None) -> dict
         "report": v.get("report_url"),
         "number": v.get("number"),
         "sources": v.get("sources"),
-        "wind": wind,
+        "wind": v.get("wind"),
+        "official": v.get("official"),
+        "sigmets": v.get("sigmets") or [],
+        "quakes_7d": v.get("quakes_7d") or 0,
+        "quake_max": v.get("quake_max"),
+        "wiki": v.get("wiki"),
     }
     return out
 
