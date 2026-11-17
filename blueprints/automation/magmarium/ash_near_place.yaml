@@ -1,0 +1,54 @@
+blueprint:
+  name: Magmarium - volcanic ash near a place
+  description: >-
+    Sends a notification when volcanic ash comes near one of your places: an ash
+    cloud from an official notice, an official ash area for aviation (SIGMET) or a
+    simulated drift track from forecast winds. The places and the radius are set in
+    the Magmarium options; each place has its own "Ash near ..." sensor.
+  domain: automation
+  source_url: https://github.com/mb26-dev/ha-magmarium/blob/main/blueprints/automation/magmarium/ash_near_place.yaml
+  input:
+    sensor:
+      name: Ash sensor
+      description: The Magmarium "Ash near ..." sensor of a place
+      selector:
+        entity:
+          filter:
+            - integration: magmarium
+              domain: binary_sensor
+    only_official:
+      name: Only official ash areas
+      description: Notify only for official SIGMET ash areas, not for simulated drift tracks
+      default: false
+      selector:
+        boolean: {}
+    actions:
+      name: Actions
+      description: >-
+        What to do, e.g. a notification. Available variables: place, volcano, kind
+        (sigmet, plume or drift), distance_km, eta_hours, official.
+      selector:
+        action: {}
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: !input sensor
+    from: "off"
+    to: "on"
+
+variables:
+  only_official: !input only_official
+  place: "{{ state_attr(trigger.entity_id, 'friendly_name') }}"
+  volcano: "{{ state_attr(trigger.entity_id, 'volcano') or 'unknown volcano' }}"
+  kind: "{{ state_attr(trigger.entity_id, 'kind') }}"
+  distance_km: "{{ state_attr(trigger.entity_id, 'nearest_km') }}"
+  eta_hours: "{{ state_attr(trigger.entity_id, 'eta_hours') }}"
+  official: "{{ state_attr(trigger.entity_id, 'official') }}"
+
+conditions:
+  - condition: template
+    value_template: "{{ not only_official or official }}"
+
+actions: !input actions
