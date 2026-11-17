@@ -101,7 +101,8 @@ def geonet_cams() -> list[dict[str, Any]]:
     ]
 
 
-_JMA_LINK = re.compile(r'href="[^"]*volcam\.php\?VC=(\d{5})"[^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
+# the JMA page writes its links with single quotes, accept both
+_JMA_LINK = re.compile(r"""href=["'][^"']*volcam\.php\?VC=(\d{5})["'][^>]*>(.*?)</a>""", re.IGNORECASE | re.DOTALL)
 
 
 def parse_jma_cams(page: str, list_text: str) -> list[dict[str, Any]]:
@@ -138,7 +139,7 @@ def parse_jma_cams(page: str, list_text: str) -> list[dict[str, Any]]:
     return out
 
 
-_MAGMA_LINK = re.compile(r'href="[^"]*/cctv/([A-Z]{3})"[^>]*>\s*([^<(]+?)\s*\((\d+)\)\s*</a>', re.IGNORECASE)
+_MAGMA_LINK = re.compile(r"""href=["'][^"']*/cctv/([A-Z]{3})["'][^>]*>\s*([^<(]+?)\s*\((\d+)\)\s*</a>""", re.IGNORECASE)
 
 
 def parse_magma_cctv(page: str) -> list[dict[str, Any]]:

@@ -336,7 +336,7 @@ class MagmariumData:
         if len(errors) == 3:
             raise FeedError("; ".join(errors))
         if errors:
-            _LOGGER.debug("Some camera lists could not be loaded: %s", "; ".join(errors))
+            _LOGGER.warning("Some camera lists could not be loaded, the last lists are kept: %s", "; ".join(errors))
 
     async def _refresh_wind(self, now: float, force: bool) -> bool:
         """Winds aloft for every volcano with ash or an eruption, hourly or when that set changes."""
