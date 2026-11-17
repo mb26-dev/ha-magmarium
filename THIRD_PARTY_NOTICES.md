@@ -7,6 +7,12 @@ Magmarium does not ship any third party data. Everything below is downloaded at 
 | Volcano alert levels (Level I-IV) and VONA notices for Indonesia | [MAGMA Indonesia](https://magma.esdm.go.id), Center for Volcanology and Geological Hazard Mitigation (PVMBG / CVGHM), Geological Agency of Indonesia | Public web pages, read every 10 minutes (alert levels every hour) |
 | Weekly Volcanic Activity Report | [Smithsonian Institution Global Volcanism Program](https://volcano.si.edu) and the [USGS Volcano Hazards Program](https://www.usgs.gov/programs/VHP) | Public RSS feed, read every 6 hours |
 | Volcanoes of the World (Holocene volcano list) | [Smithsonian Institution Global Volcanism Program](https://volcano.si.edu), Volcanoes of the World database | Names, positions and heights of all known volcanoes, read once a month |
+| Volcano alert levels and aviation colour codes of US volcanoes | [USGS Volcano Hazards Program](https://volcanoes.usgs.gov), Hazard Notification System (HANS) public API | Read every hour |
+| Aviation colour codes of Icelandic volcanoes | [Icelandic Met Office](https://en.vedur.is) (Veðurstofa Íslands), VONA notifications page | Read every hour |
+| Volcanic alert levels of Japanese volcanoes | [Japan Meteorological Agency](https://www.jma.go.jp) | Public JSON of the JMA disaster prevention map, read every hour |
+| Volcanic ash SIGMETs | [AviationWeather.gov](https://aviationweather.gov), NOAA Aviation Weather Center (public domain) | International SIGMETs with hazard VA, read every 15 minutes |
+| Earthquakes | [USGS Earthquake Hazards Program](https://earthquake.usgs.gov) (public domain) | GeoJSON feeds M4.5+ of the week and M2.5+ of the day, read every 15 minutes |
+| English Wikipedia article per volcano | [Wikidata](https://www.wikidata.org) (CC0), property P1886 Smithsonian volcano ID | SPARQL query, read once a month; only the article titles are used |
 | Winds aloft (850 to 250 hPa) for the ash drift simulation | [Open-Meteo](https://open-meteo.com), weather data licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Hourly forecast winds at the places of volcanoes with an ash cloud or an eruption, read every hour, free non-commercial API without a key |
 | Earth imagery | NASA Earth Observatory: [Blue Marble Next Generation](https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/) by Reto Stöckli and [Black Marble 2016](https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps) | Day and night side of the globe, credit "NASA Earth Observatory" |
 

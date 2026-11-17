@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0b4 - 2026-11-17
+
+- Official alert levels outside Indonesia: USGS (all US volcanoes), Icelandic Met Office (aviation colour code), Japan Meteorological Agency (volcanic alert levels); they replace the estimate from the weekly report
+- Official volcanic ash areas for aviation: ash SIGMETs from AviationWeather.gov, drawn as polygons with height and validity; the named volcano gets an ash plume moving in the SIGMET direction
+- Earthquakes of the last 7 days from the USGS as rings, linked to volcanoes within 30 km
+- New binary sensors "Ash near <place>" for chosen zones (home, airports) with a radius; on for a SIGMET area, an ash plume or a simulated drift track; new blueprint "volcanic ash near a place"
+- New sensors: Ash SIGMETs, Earthquakes near volcanoes; watched volcano sensors get the official alert, earthquake count and Wikipedia link
+- Replay: the eruptions and ash clouds of the last 90 days (VONA) play on the globe, with play, pause and a time slider
+- Wikipedia link for every volcano, matched through Wikidata by the Smithsonian volcano number
+- Visual card editor and card preview in the card picker
+- New card options `ash_areas`, `quakes`, `replay`
+- Existing setups switch the new sources on automatically
+
 ## 0.1.0b3 - 2026-11-17
 
 - Ash drift simulation: hourly forecast winds from Open-Meteo at the height of each ash cloud (850 to 250 hPa), fetched only for volcanoes with an ash cloud or an eruption

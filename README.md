@@ -18,7 +18,7 @@
 
 Active volcanoes on a living globe for Home Assistant. Magmarium shows **every volcano with a current report** on a 3D Earth: coloured by its official alert level, glowing while it erupts, and with **ash plumes that rise and drift exactly as the latest official notice describes**, only while an ash cloud is actually reported.
 
-It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, and adds the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account.
+It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, adds **official alert levels from the USGS, the Icelandic Met Office and the Japan Meteorological Agency**, the **official volcanic ash areas for aviation (SIGMETs)** worldwide, **earthquakes** from the USGS and the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account.
 
 > **Beta.** Magmarium 0.1 is the first public test version. Feedback and bug reports are very welcome.
 
@@ -36,6 +36,11 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 - Tap a volcano for its alert level, aviation colour code, eruption time, ash cloud height and drift, the full notice text and links to the official reports
 - Filter chips: all, erupting, ash clouds, elevated
 - **Region buttons:** one tap turns the globe to Indonesia, Japan, Iceland, the Andes and twelve more volcanic regions, each with its number of active volcanoes
+- **Official ash areas:** volcanic ash SIGMETs drawn as live polygons with height and validity, tap for the full text
+- **Earthquakes** of the last 7 days as rings, orange near a volcano, fresh ones pulse
+- **Replay:** one button plays the eruptions and ash clouds of the last 90 days (VONA, Indonesia) on the globe
+- **Wikipedia link** for every volcano, matched by its Smithsonian number through Wikidata
+- **Visual card editor**, no YAML needed
 - **Ash drift simulation:** forecast winds at the height of the ash cloud (Open-Meteo) turn plumes without a reported direction and draw a dashed track of where the ash would drift in the next 6 hours
 - **Fullscreen button**, also on phones and in the app (full window where the browser has no fullscreen)
 - Drag to turn, mouse wheel or pinch to zoom, double tap to zoom in, optional slow rotation
@@ -51,6 +56,9 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 | Nearest active volcano | name of the nearest volcano with elevated activity | distance from home, level, eruption, ash cloud |
 | Latest VONA | time of the newest VONA (timestamp) | volcano, aviation colour, notice text, ash height, link |
 | `<volcano>` | alert level of a watched volcano: normal, advisory, watch, warning | official alert (e.g. *Level III (Siaga)*), aviation colour, eruption, ash cloud, notice, distance |
+| Ash SIGMETs | valid volcanic ash SIGMETs worldwide | volcano, flight information region, height, validity, movement |
+| Earthquakes near volcanoes | USGS earthquakes of the last 7 days within 30 km of a volcano | magnitude, depth, distance, volcano |
+| Ash near `<place>` (binary) | on when ash comes within the radius of a place | nearest distance, volcano, kind (SIGMET, plume or drift track), hours until the drift track arrives, official |
 | Data sources (diagnostic) | ok, degraded or waiting | status of every feed, cache sizes, Earth imagery |
 
 If a source has not answered for 24 hours, Home Assistant shows a repair notice. The last known data stays on the globe, and the notice disappears by itself when the source answers again.
@@ -80,10 +88,12 @@ All settings are done in the UI and can be changed later under **Configure**:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| Data sources | MAGMA Indonesia, Weekly report | MAGMA Indonesia: official alert levels and VONA notices for all Indonesian volcanoes. Weekly report: worldwide activity from the Smithsonian Global Volcanism Program and USGS. |
+| Data sources | all | MAGMA Indonesia: official alert levels and VONA notices for all Indonesian volcanoes. Weekly report: worldwide activity from the Smithsonian Global Volcanism Program and USGS. Official alert levels: USGS (US volcanoes), Icelandic Met Office, Japan Meteorological Agency. Ash SIGMETs: official volcanic ash areas for aviation. Earthquakes: USGS. |
 | Volcanoes to watch | empty | Comma separated names, e.g. `Semeru, Merapi, Anak Krakatau, Lewotobi`. Each one gets its own sensor. |
+| Places to watch for ash | Home | Zones, for example your home and your airports. Each gets an "Ash near ..." sensor. |
+| Ash warning radius | 150 km | Distance around each place. |
 
-Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), the volcano catalogue once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
+Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), official alert levels every hour, ash SIGMETs and earthquakes every 15 minutes, the volcano catalogue and the Wikipedia links once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
 
 ## The card
 
@@ -104,6 +114,9 @@ rotate: false          # slow rotation when nobody touches the card
 show_all: true         # all known volcanoes as small background cones
 weekly_ash: true       # light ash plumes for ash reported in the weekly report
 wind_tracks: true      # dashed 6 hour ash drift tracks from forecast winds
+ash_areas: true        # official volcanic ash areas (SIGMETs)
+quakes: true           # earthquakes of the last 7 days
+replay: true           # replay button for the last 90 days
 labels: true
 ```
 
@@ -138,7 +151,9 @@ center: indonesia
 regions: [indonesia, philippines, japan, iceland, mediterranean]
 ```
 
-## Alert notifications (blueprint)
+Every option can also be set in the visual card editor.
+
+## Alert notifications (blueprints)
 
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fmb26-dev%2Fha-magmarium%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fmagmarium%2Falert_level_change.yaml)
 
@@ -151,11 +166,19 @@ Pick a watched volcano and what should happen. The actions get the variables `vo
     message: "{{ alert }}. {{ text }}"
 ```
 
+**Ash near a place**
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fmb26-dev%2Fha-magmarium%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fmagmarium%2Fash_near_place.yaml)
+
+Pick an "Ash near ..." sensor, for example of your home or your airport. Optionally only official ash areas count. The actions get `place`, `volcano`, `kind`, `distance_km`, `eta_hours` and `official`.
+
 ## How it reads the reports
 
 | Shown on the globe | Comes from |
 | --- | --- |
-| Colour of the ring | Indonesia: official MAGMA alert level (Level I Normal, II Waspada, III Siaga, IV Awas). Elsewhere: the weekly report (new eruptive activity = Watch, unrest or ongoing activity = Advisory). |
+| Colour of the ring | Indonesia: official MAGMA alert level (Level I Normal, II Waspada, III Siaga, IV Awas). US volcanoes: USGS alert level and aviation colour code. Iceland: aviation colour code of the Icelandic Met Office. Japan: JMA alert level (levels 4 and 5 both show as Warning). Elsewhere: the weekly report (new eruptive activity = Watch, unrest or ongoing activity = Advisory). |
+| Grey dashed area | a valid volcanic ash SIGMET: the official ash area for aviation. A volcano named in it gets an ash plume moving in the SIGMET direction. |
+| Rings | USGS earthquakes of the last 7 days; orange within 30 km of a volcano. Small volcanic quakes, for example in Indonesia, are often not in this catalogue. |
 | Glowing crater and lava | a VONA in the last 24 hours that reports an eruption, or eruptive activity in the current weekly report |
 | Ash plume | a VONA in the last 4 hours with an ash cloud: height above the summit, drift direction, ash colour and intensity are taken from the notice. Exercise notices (*VA EXERCISE*) are ignored. |
 | Light ash plume | ash plumes mentioned in the current weekly report |
@@ -176,6 +199,10 @@ A star on GitHub, a bug report or a screenshot of your dashboard helps just as m
 
 - Volcano alert levels and VONA notices for Indonesia: [MAGMA Indonesia](https://magma.esdm.go.id), PVMBG / CVGHM, Geological Agency of Indonesia
 - Weekly Volcanic Activity Report and Volcanoes of the World: [Smithsonian Institution Global Volcanism Program](https://volcano.si.edu) and [USGS](https://www.usgs.gov/programs/VHP)
+- Official alert levels: [USGS Volcano Hazards Program](https://volcanoes.usgs.gov) (HANS), [Icelandic Met Office](https://en.vedur.is), [Japan Meteorological Agency](https://www.jma.go.jp)
+- Volcanic ash SIGMETs: [AviationWeather.gov](https://aviationweather.gov) (NOAA Aviation Weather Center)
+- Earthquakes: [USGS Earthquake Hazards Program](https://earthquake.usgs.gov)
+- Wikipedia links: [Wikidata](https://www.wikidata.org) (CC0)
 - Winds aloft: [Open-Meteo](https://open-meteo.com) (CC BY 4.0)
 - Earth imagery: NASA Earth Observatory, [Blue Marble Next Generation](https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/) by Reto Stöckli and [Black Marble 2016](https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps)
 - Volcano, lava and ash drawings are original artwork rendered in the card
