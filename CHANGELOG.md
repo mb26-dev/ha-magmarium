@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.0b5 - 2026-11-17
+
+- New logo and icon: the volcano emblem in its glowing ring with the Magmarium wordmark, in the integration list, the store and the README
+- The brand images are rendered from the artwork in `brand_src/magmarium_logo.jpg`
+
 ## 0.1.0b4 - 2026-11-17
 
 - Official alert levels outside Indonesia: USGS (all US volcanoes), Icelandic Met Office (aviation colour code), Japan Meteorological Agency (volcanic alert levels); they replace the estimate from the weekly report
