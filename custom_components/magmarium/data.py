@@ -22,6 +22,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     ASH_LIVE_HOURS,
     BACKOFF_MINUTES,
+    CAMS_MINUTES,
     CATALOG_DAYS,
     DOMAIN,
     EARTH_DAY_FALLBACK_MONTH,
@@ -55,6 +56,16 @@ from .const import (
     VONA_MAX_AGE_DAYS,
     WIKI_DAYS,
     WIND_MINUTES,
+)
+from .cams import (
+    JMA_CAMS_URL,
+    MAGMA_CCTV_URL,
+    USGS_CAMS_URL,
+    geonet_cams,
+    link_cams,
+    parse_jma_cams,
+    parse_magma_cctv,
+    parse_usgs_cams,
 )
 from .extra import (
     IMO_URL,
@@ -102,9 +113,10 @@ FEEDS = {
     "sigmet": (SOURCE_SIGMET, SIGMET_MINUTES),
     "quakes": (SOURCE_QUAKES, QUAKE_MINUTES),
     "wiki": (None, WIKI_DAYS * 24 * 60),
+    "cams": (None, CAMS_MINUTES),
 }
 # feeds read in the main loop, in this order
-MAIN_FEEDS = ("catalog", "wiki", "magma_levels", "magma_vona", "gvp_weekly", "usgs", "imo", "jma", "sigmet", "quakes")
+MAIN_FEEDS = ("catalog", "wiki", "magma_levels", "magma_vona", "gvp_weekly", "usgs", "imo", "jma", "sigmet", "quakes", "cams")
 # repair issues are raised per source, for the feeds of that source
 REPAIR_SOURCES = (SOURCE_MAGMA, SOURCE_GVP_WEEKLY, SOURCE_OFFICIAL, SOURCE_SIGMET, SOURCE_QUAKES)
 
@@ -134,6 +146,9 @@ class MagmariumData:
         self.sigmets: list[dict[str, Any]] = []
         self.quakes: list[dict[str, Any]] = []
         self.wiki: dict[str, list[str]] = {}
+        # official volcano cameras per provider
+        self.cams: dict[str, list[dict[str, Any]]] = {}
+        self.cam_map: dict[str, list[dict[str, Any]]] = {}
         self.history_json: bytes | None = None
         self.history_gzip: bytes | None = None
         self._history_key: str = ""
@@ -167,6 +182,7 @@ class MagmariumData:
             self.sigmets = stored.get("sigmets") or []
             self.quakes = stored.get("quakes") or []
             self.wiki = stored.get("wiki") or {}
+            self.cams = stored.get("cams") or {}
             self.feed_state = stored.get("feeds") or {}
         await self.async_rebuild()
 
@@ -183,6 +199,7 @@ class MagmariumData:
             "sigmets": self.sigmets,
             "quakes": self.quakes,
             "wiki": self.wiki,
+            "cams": self.cams,
             "feeds": self.feed_state,
         })
 
@@ -291,6 +308,35 @@ class MagmariumData:
         elif feed == "quakes":
             texts = [await self._get(url) for url in QUAKE_URLS]
             self.quakes = await self.hass.async_add_executor_job(parse_quakes, texts)
+        elif feed == "cams":
+            await self._refresh_cams()
+
+    async def _refresh_cams(self) -> None:
+        """Official camera lists; a provider that fails keeps its last list."""
+        errors: list[str] = []
+
+        async def usgs() -> list[dict[str, Any]]:
+            text = await self._get(USGS_CAMS_URL)
+            return await self.hass.async_add_executor_job(parse_usgs_cams, text, time.time())
+
+        async def jma() -> list[dict[str, Any]]:
+            page = await self._get(JMA_CAMS_URL)
+            vlist = await self._get(JMA_LIST_URL)
+            return await self.hass.async_add_executor_job(parse_jma_cams, page, vlist)
+
+        async def magma() -> list[dict[str, Any]]:
+            page = await self._get(MAGMA_CCTV_URL)
+            return await self.hass.async_add_executor_job(parse_magma_cctv, page)
+
+        for key, job in (("usgs", usgs), ("jma", jma), ("magma", magma)):
+            try:
+                self.cams[key] = await job()
+            except (FeedError, ValueError, TypeError, KeyError) as err:
+                errors.append(f"{key}: {err}")
+        if len(errors) == 3:
+            raise FeedError("; ".join(errors))
+        if errors:
+            _LOGGER.debug("Some camera lists could not be loaded: %s", "; ".join(errors))
 
     async def _refresh_wind(self, now: float, force: bool) -> bool:
         """Winds aloft for every volcano with ash or an eruption, hourly or when that set changes."""
@@ -454,6 +500,12 @@ class MagmariumData:
                 v["quakes_7d"] = len(mags) if mags else 0
                 v["quake_max"] = max(mags) if mags else None
         result["quakes"] = quakes
+
+        # official volcano cameras
+        all_cams = [c for key in ("usgs", "jma", "magma") for c in self.cams.get(key) or []] + geonet_cams()
+        self.cam_map = link_cams(self.catalog, all_cams)
+        for v in volcanoes:
+            v["cams"] = self.cam_map.get(v["id"]) or []
         self.result = result
         self.updated = now.timestamp()
         catalog_rows = [
@@ -473,6 +525,10 @@ class MagmariumData:
                 [q["lat"], q["lon"], q["mag"], q["depth_km"], q["time"], q["place"], q["url"], q.get("volcano")]
                 for q in quakes
             ],
+            "cams": {
+                key: [[c["src"], c["name"], c["img"], c["page"], c["time"]] for c in cams]
+                for key, cams in self.cam_map.items()
+            },
         }
         raw = json.dumps(payload, separators=(",", ":")).encode()
         self.payload_json = raw

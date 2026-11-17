@@ -394,6 +394,8 @@ class VolcanoSensor(MagmariumEntity, SensorEntity):
             "official_alert": (vol.get("official") or {}).get("alert"),
             "quakes_7d": vol.get("quakes_7d") or 0,
             "wikipedia": f"https://en.wikipedia.org/wiki/{vol['wiki']}" if vol.get("wiki") else None,
+            "camera_image": next((c["img"] for c in vol.get("cams") or [] if c.get("img")), None),
+            "cameras": [c["page"] for c in vol.get("cams") or []],
             "elevation_m": vol.get("elevation"),
             "latitude": vol["lat"],
             "longitude": vol["lon"],

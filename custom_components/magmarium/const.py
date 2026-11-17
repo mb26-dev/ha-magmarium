@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "magmarium"
-VERSION = "0.1.0b5"
+VERSION = "0.1.0b6"
 
 CONF_SOURCES = "sources"
 CONF_WATCHED = "watched_volcanoes"
@@ -62,6 +62,7 @@ OFFICIAL_MINUTES = 60
 SIGMET_MINUTES = 15
 QUAKE_MINUTES = 15
 WIKI_DAYS = 30
+CAMS_MINUTES = 6 * 60
 HISTORY_DAYS = 90
 
 # a VONA ash cloud is shown as a live plume for this long, fading out
