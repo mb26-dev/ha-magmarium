@@ -110,6 +110,17 @@ def test_quakes_marked():
     assert out[0]["volcano"] == "Kilauea" and out[1]["volcano"] is None
 
 
+def test_wiki_encoding():
+    text = json.dumps({"results": {"bindings": [
+        {"gvp": {"value": "342090"}, "article": {"value": "https://en.wikipedia.org/wiki/Volc%C3%A1n_de_Fuego"}},
+    ]}})
+    titles = extra.parse_wikidata(text)
+    assert titles["342090"] == ["Volcán_de_Fuego"]
+    assert extra.wiki_url("Volcán_de_Fuego") == "https://en.wikipedia.org/wiki/Volc%C3%A1n_de_Fuego"
+    # cached encoded titles from older versions are decoded once
+    assert extra.choose_wiki(["Volc%C3%A1n_de_Fuego"], "Fuego") == "Volcán_de_Fuego"
+
+
 def test_wiki_choice():
     assert extra.choose_wiki(["Mount_Merapi"], "Merapi") == "Mount_Merapi"
     assert extra.choose_wiki(["Þorbjörn_(mountain)", "Eldvörp–Svartsengi", "Reykjanes_volcanic_system"], "Reykjanes") == "Reykjanes_volcanic_system"
