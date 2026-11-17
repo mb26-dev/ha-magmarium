@@ -78,6 +78,11 @@ def test_sigmet():
     }])
     rows = extra.parse_sigmets(text, datetime(2026, 11, 17, 11, 0, tzinfo=timezone.utc))
     assert rows[0]["volcano"] == "Semeru" and rows[0]["top_m"] == 4572 and rows[0]["toward_deg"] == 225
+    # the forecast position (series id ending in F) belongs to the same SIGMET
+    fc = json.loads(text)[0] | {"seriesId": "8F", "coords": [{"lon": 112.0, "lat": -8.5}, {"lon": 111.5, "lat": -8.9}, {"lon": 111.2, "lat": -8.4}]}
+    both = json.dumps([json.loads(text)[0] | {"seriesId": "8"}, fc])
+    merged = extra.parse_sigmets(both, datetime(2026, 11, 17, 11, 0, tzinfo=timezone.utc))
+    assert len(merged) == 1 and merged[0]["forecast_poly"][0] == [-8.5, 112.0]
     # expired ones are dropped
     assert extra.parse_sigmets(text, datetime(2026, 11, 18, 0, 0, tzinfo=timezone.utc)) == []
 
