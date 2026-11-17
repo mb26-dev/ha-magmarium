@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.0b8";
+const VERSION = "0.1.0b9";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -136,7 +136,16 @@ function tidyNotice(text) {
 }
 
 function wikiUrl(title, name) {
-  if (title) return `https://en.wikipedia.org/wiki/${encodeURIComponent(title).replace(/%2F/g, "/")}`;
+  if (title) {
+    // titles from older versions arrive percent-encoded: decode first, then encode exactly once
+    let plain = String(title);
+    try {
+      if (plain.includes("%")) plain = decodeURIComponent(plain);
+    } catch (_err) {
+      // a literal % in a title: keep it as it is
+    }
+    return `https://en.wikipedia.org/wiki/${encodeURIComponent(plain.replace(/ /g, "_")).replace(/%2F/g, "/").replace(/%3A/g, ":")}`;
+  }
   return `https://en.wikipedia.org/w/index.php?search=${encodeURIComponent(`${name} volcano`)}`;
 }
 
