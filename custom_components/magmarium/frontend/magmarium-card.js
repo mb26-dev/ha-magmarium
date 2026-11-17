@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.0b6";
+const VERSION = "0.1.0b7";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -120,6 +120,19 @@ function utc(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   return `${d.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+/** "1218 UTC" -> "12:18 UTC" and no repeated sentences (also for notices cached by older versions) */
+function tidyNotice(text) {
+  if (!text) return "";
+  const t = String(text).replace(/\b([01]\d|2[0-3])([0-5]\d)(\s*(?:UTC|UT|local|LT|WIB|WITA|WIT)\b)/g, "$1:$2$3");
+  const seen = new Set();
+  return t.trim().split(/(?<=[.!?])\s+/).filter((s) => {
+    const k = s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (k && seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).join(" ");
 }
 
 function wikiUrl(title, name) {
@@ -1129,7 +1142,7 @@ class MagmariumCard extends HTMLElement {
       const head = n.kind === "vona"
         ? `VONA ${esc(n.color || "")} · ${esc(utc(n.time))} (${esc(rel(n.time))})`
         : `Weekly report ${esc(n.period || "")}`;
-      parts.push(`<div class="notice"><div class="muted">${head}</div>${esc(n.text || "")}</div>`);
+      parts.push(`<div class="notice"><div class="muted">${head}</div>${esc(tidyNotice(n.text))}</div>`);
     } else if (v.weekly) {
       parts.push(`<div class="notice"><div class="muted">Weekly report ${esc(v.weekly.period || "")}</div>${esc(v.weekly.text || "")}</div>`);
     }
