@@ -36,6 +36,8 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 - Tap a volcano for its alert level, aviation colour code, eruption time, ash cloud height and drift, the full notice text and links to the official reports
 - Filter chips: all, erupting, ash clouds, elevated
 - **Region buttons:** one tap turns the globe to Indonesia, Japan, Iceland, the Andes and twelve more volcanic regions, each with its number of active volcanoes
+- **Ash drift simulation:** forecast winds at the height of the ash cloud (Open-Meteo) turn plumes without a reported direction and draw a dashed track of where the ash would drift in the next 6 hours
+- **Fullscreen button**, also on phones and in the app (full window where the browser has no fullscreen)
 - Drag to turn, mouse wheel or pinch to zoom, double tap to zoom in, optional slow rotation
 - Works on phones and wall tablets, pauses itself when it is not on screen
 
@@ -81,7 +83,7 @@ All settings are done in the UI and can be changed later under **Configure**:
 | Data sources | MAGMA Indonesia, Weekly report | MAGMA Indonesia: official alert levels and VONA notices for all Indonesian volcanoes. Weekly report: worldwide activity from the Smithsonian Global Volcanism Program and USGS. |
 | Volcanoes to watch | empty | Comma separated names, e.g. `Semeru, Merapi, Anak Krakatau, Lewotobi`. Each one gets its own sensor. |
 
-Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, the volcano catalogue once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
+Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), the volcano catalogue once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
 
 ## The card
 
@@ -101,6 +103,7 @@ regions: true          # region buttons; false hides them, a list picks and orde
 rotate: false          # slow rotation when nobody touches the card
 show_all: true         # all known volcanoes as small background cones
 weekly_ash: true       # light ash plumes for ash reported in the weekly report
+wind_tracks: true      # dashed 6 hour ash drift tracks from forecast winds
 labels: true
 ```
 
@@ -156,6 +159,8 @@ Pick a watched volcano and what should happen. The actions get the variables `vo
 | Glowing crater and lava | a VONA in the last 24 hours that reports an eruption, or eruptive activity in the current weekly report |
 | Ash plume | a VONA in the last 4 hours with an ash cloud: height above the summit, drift direction, ash colour and intensity are taken from the notice. Exercise notices (*VA EXERCISE*) are ignored. |
 | Light ash plume | ash plumes mentioned in the current weekly report |
+| Drift direction of a plume | the direction in the notice; when a notice has none (always for the weekly report), the forecast wind at the height of the ash cloud |
+| Dashed drift track | a simulation: the hourly forecast wind at the volcano, at the pressure level nearest to the reported (or estimated) ash cloud top, followed for 6 hours. Shown for every plume and for a selected erupting volcano. |
 
 Ash clouds and eruptions on the globe are illustrations of the official reports, not measurements or forecasts. For aviation or safety decisions always use the official sources.
 
@@ -171,6 +176,7 @@ A star on GitHub, a bug report or a screenshot of your dashboard helps just as m
 
 - Volcano alert levels and VONA notices for Indonesia: [MAGMA Indonesia](https://magma.esdm.go.id), PVMBG / CVGHM, Geological Agency of Indonesia
 - Weekly Volcanic Activity Report and Volcanoes of the World: [Smithsonian Institution Global Volcanism Program](https://volcano.si.edu) and [USGS](https://www.usgs.gov/programs/VHP)
+- Winds aloft: [Open-Meteo](https://open-meteo.com) (CC BY 4.0)
 - Earth imagery: NASA Earth Observatory, [Blue Marble Next Generation](https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/) by Reto Stöckli and [Black Marble 2016](https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps)
 - Volcano, lava and ash drawings are original artwork rendered in the card
 

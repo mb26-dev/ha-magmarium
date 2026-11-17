@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0b3 - 2026-11-17
+
+- Ash drift simulation: hourly forecast winds from Open-Meteo at the height of each ash cloud (850 to 250 hPa), fetched only for volcanoes with an ash cloud or an eruption
+- Plumes without a reported direction, including all weekly report plumes, now drift with the forecast wind
+- Dashed, animated 6 hour drift track for every plume and for a selected erupting volcano, with the wind at plume height in the info panel
+- New card option `wind_tracks`
+- Fullscreen button; where the browser has no fullscreen (iOS, some app views) the card fills the window, Escape closes it
+
 ## 0.1.0b2 - 2026-11-17
 
 - Region buttons in the card: one tap turns the globe to Indonesia, the Philippines, Japan, Kamchatka, Alaska, the Cascades, Hawaii, Central America, the Caribbean, the Andes, Iceland, the Azores and Canaries, the Mediterranean, East Africa, PNG and Vanuatu or New Zealand and Tonga
