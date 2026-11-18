@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.5";
+const VERSION = "0.1.6";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -2023,8 +2023,10 @@ const VC_STYLE = `
   .row .d .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 2px; }
   .row .d .chip { font-size: 10.5px; padding: 2px 8px; border-radius: 10px; background: rgba(255,255,255,.08); max-width: 100%; box-sizing: border-box; }
   .row .d .chip.hot { background: rgba(255,90,31,.22); color: #ffb48a; }
-  .row .d .nt { margin-top: 4px; font-size: 11.5px; line-height: 1.4; opacity: .9; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  .row .d .nt.full { display: block; -webkit-line-clamp: unset; overflow: visible; }
+  .row .d .nt { margin-top: 4px; font-size: 11.5px; line-height: 1.4; opacity: .9; }
+  .row .d .nt.clamp { display: -webkit-box; -webkit-line-clamp: var(--lines, 3); -webkit-box-orient: vertical; overflow: hidden; }
+  .row .d .nt.clamp.open { display: block; -webkit-line-clamp: unset; overflow: visible; }
+  .row .d .more { background: none; border: 0; padding: 2px 0 0; margin: 0; font: inherit; font-size: 11px; font-weight: 600; color: #ffb965; cursor: pointer; }
   .msg { opacity: .75; padding: 12px 14px; }
 `;
 
@@ -2196,6 +2198,18 @@ class MagmariumVolcanoCard extends HTMLElement {
       this._scenes.push({ kind: "icon", cv, v, erupt: eruptStrength(v), ej: this._ejectaFor(v) });
     });
     if (this._config.navigation_path) this._body.querySelectorAll(".row").forEach((r) => r.addEventListener("click", () => this._navigate()));
+    this._body.querySelectorAll(".more").forEach((btn) => btn.addEventListener("click", (ev) => {
+      // only open the text, never the globe
+      ev.stopPropagation();
+      if (!this._open) this._open = new Set();
+      const k = btn.dataset.k;
+      const nt = btn.previousElementSibling;
+      const open = !this._open.has(k);
+      if (open) this._open.add(k);
+      else this._open.delete(k);
+      nt.classList.toggle("open", open);
+      btn.textContent = open ? "Show less" : "Show more";
+    }));
   }
 
   /** time zone of Home Assistant, e.g. "Asia/Bangkok" */
@@ -2231,6 +2245,17 @@ class MagmariumVolcanoCard extends HTMLElement {
         return m;
       }
     });
+  }
+
+  /** a long report: shortened to `text_lines` lines with "Show more" (text_lines: 0 shows it in full) */
+  _longText(id, head, body) {
+    const lines = Number(this._config.text_lines ?? 3);
+    const html = `<span class="muted">${esc(head)}</span> ${esc(body)}`;
+    // roughly 55 characters fit in one line of the list
+    if (!(lines > 0) || (head.length + body.length) <= lines * 55) return `<div class="nt">${html}</div>`;
+    const open = this._open && this._open.has(id);
+    return `<div class="nt clamp${open ? " open" : ""}" style="--lines:${Math.round(lines)}">${html}</div>`
+      + `<button class="more" data-k="${esc(id)}">${open ? "Show less" : "Show more"}</button>`;
   }
 
   /** list row in detail mode: eruption, ash cloud, SIGMETs and the latest report */
@@ -2274,11 +2299,12 @@ class MagmariumVolcanoCard extends HTMLElement {
       const nt = v.notice;
       if (nt && nt.kind === "vona" && nt.text) {
         const head = `VONA ${nt.color || ""} · ${this._localTime(nt.time)} · ${rel(nt.time)}`;
-        text = `<div class="nt full"><span class="muted">${esc(head)}</span> ${esc(this._localizeNotice(tidyNotice(nt.text), nt.time))}</div>`;
+        // VONA notices are short and the important part: always in full
+        text = `<div class="nt"><span class="muted">${esc(head)}</span> ${esc(this._localizeNotice(tidyNotice(nt.text), nt.time))}</div>`;
       } else if (nt && nt.text) {
-        text = `<div class="nt"><span class="muted">${esc(nt.kind === "weekly" ? `Weekly report ${nt.period || ""}` : "Latest report")}</span> ${esc(nt.text)}</div>`;
+        text = this._longText(v.id, nt.kind === "weekly" ? `Weekly report ${nt.period || ""}` : "Latest report", nt.text);
       } else if (v.weekly && v.weekly.text) {
-        text = `<div class="nt"><span class="muted">Weekly report ${esc(v.weekly.period || "")}</span> ${esc(v.weekly.text)}</div>`;
+        text = this._longText(v.id, `Weekly report ${v.weekly.period || ""}`, v.weekly.text);
       }
     }
     return `<div class="d"><div class="chips">${chips.join("")}</div>${text}</div>`;
@@ -2488,6 +2514,7 @@ const VC_LABELS = {
   count: "Volcanoes in the list",
   sort: "List order",
   details: "List with details (eruption, ash cloud, report)",
+  text_lines: "Lines of long reports (0 = full text)",
   name: "Name (empty = volcano name)",
   title: "Header (empty = Magmarium)",
   navigation_path: "Open on tap (e.g. /dashboard-volcano/globe)",
@@ -2542,6 +2569,7 @@ class MagmariumVolcanoCardEditor extends HTMLElement {
           { name: "count", selector: { number: { min: 1, max: 15, mode: "box" } } },
           { name: "sort", selector: { select: { mode: "dropdown", options: [{ value: "activity", label: "Most active first" }, { value: "distance", label: "Nearest first" }] } } },
           { name: "details", selector: { boolean: {} } },
+          { name: "text_lines", selector: { number: { min: 0, max: 20, mode: "box" } } },
         ],
       },
       { name: "navigation_path", selector: { text: {} } },
@@ -2562,6 +2590,7 @@ class MagmariumVolcanoCardEditor extends HTMLElement {
         if (value.count === 5) delete value.count;
         if (value.sort === "activity") delete value.sort;
         if (value.details === false) delete value.details;
+        if (value.text_lines === 3) delete value.text_lines;
         this._config = value;
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: value }, bubbles: true, composed: true }));
       });
@@ -2569,7 +2598,7 @@ class MagmariumVolcanoCardEditor extends HTMLElement {
     }
     this._form.hass = this._hass;
     this._form.schema = this._schema();
-    const data = { volcano: "auto", count: 5, sort: "activity", details: false, ...this._config };
+    const data = { volcano: "auto", count: 5, sort: "activity", details: false, text_lines: 3, ...this._config };
     for (const k of VC_SHOW) data[k] = this._config?.[k] !== false;
     this._form.data = data;
   }
