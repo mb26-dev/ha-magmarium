@@ -558,7 +558,8 @@ export function defineFireCard({ VERSION, loadData, refreshMs }) {
         return;
       }
       this._paintLayer(g, (z, y, x) => layer.url(z, y, x, date), layer.max, again);
-      if (name === "satellite") this._paintLayer(g, COAST, 9, again, 0.8);
+      // the relief map ends at about 600 m per pixel: sharp coastlines on top when zoomed in close
+      if (name === "satellite" || this._view.zoom > 8.6) this._paintLayer(g, COAST, 11, again, name === "satellite" ? 0.8 : 0.55);
       g.fillStyle = `rgba(4,3,3,${layer.dim})`;
       g.fillRect(0, 0, this._w, this._h);
       const when = date ? new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "";
