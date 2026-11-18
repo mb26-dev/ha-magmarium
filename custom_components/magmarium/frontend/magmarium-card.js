@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.3";
+const VERSION = "0.1.4";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -2014,6 +2014,16 @@ const VC_STYLE = `
   .row .n .muted { display: block; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row .m { text-align: right; white-space: nowrap; }
   .row .m .muted { display: block; }
+  .row .m .badge + .badge { margin-left: 4px; }
+  .row.det { align-items: start; padding: 6px 10px 8px 4px; }
+  .row.det canvas { margin-top: 2px; grid-row: 1 / span 2; }
+  .row.det { grid-template-columns: 46px minmax(0,1fr); row-gap: 2px; }
+  .row.det .n { white-space: normal; }
+  .row .d { grid-column: 2 / 3; min-width: 0; }
+  .row .d .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 2px; }
+  .row .d .chip { font-size: 10.5px; padding: 2px 8px; border-radius: 10px; background: rgba(255,255,255,.08); white-space: nowrap; }
+  .row .d .chip.hot { background: rgba(255,90,31,.22); color: #ffb48a; }
+  .row .d .nt { margin-top: 4px; font-size: 11.5px; line-height: 1.4; opacity: .9; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .msg { opacity: .75; padding: 12px 14px; }
 `;
 
@@ -2064,7 +2074,8 @@ class MagmariumVolcanoCard extends HTMLElement {
   }
 
   getCardSize() {
-    return this._isList() ? 1 + (this._config.volcanoes?.length || this._config.count || 5) : 6;
+    const n = this._config.volcanoes?.length || this._config.count || 5;
+    return this._isList() ? 1 + (this._config.details ? n * 2 : n) : 6;
   }
 
   getGridOptions() {
@@ -2148,19 +2159,35 @@ class MagmariumVolcanoCard extends HTMLElement {
 
   _renderList() {
     let list = this._volcanoes();
+    const home = this._data.home;
+    const hasHome = !!(home && Number.isFinite(home[0]));
+    const distOf = (v) => (hasHome ? distKm(home[0], home[1], v.lat, v.lon) : null);
+    const byDistance = this._config.sort === "distance" && hasHome;
+    const count = Math.max(1, Number(this._config.count) || 5);
     if (Array.isArray(this._config.volcanoes) && this._config.volcanoes.length) {
       list = this._config.volcanoes.map((id) => list.find((v) => v.id === id)).filter(Boolean);
+      if (byDistance) list.sort((a, b) => distOf(a) - distOf(b));
+    } else if (byDistance) {
+      // the nearest volcanoes with something going on: raised alert level, eruption or ash
+      list = list
+        .filter((v) => (v.level || 0) >= 2 || v.eruption || v.ash)
+        .sort((a, b) => distOf(a) - distOf(b))
+        .slice(0, count);
     } else {
-      list = list.slice().sort((a, b) => activityScore(b) - activityScore(a)).slice(0, Math.max(1, Number(this._config.count) || 5));
+      list = list.slice().sort((a, b) => activityScore(b) - activityScore(a)).slice(0, count);
     }
-    const home = this._data.home;
+    const details = this._config.details === true;
     const rows = list.map((v, i) => {
-      const dist = home && Number.isFinite(home[0]) ? distKm(home[0], home[1], v.lat, v.lon) : null;
-      const where = [v.country, dist != null ? `${fmtInt(Math.round(dist))} km` : ""].filter(Boolean).join(" · ");
+      const dist = distOf(v);
+      const where = [v.country, dist != null ? `${fmtInt(Math.round(dist))} km${details ? " from home" : ""}` : ""].filter(Boolean).join(" · ");
       const state = v.eruption ? (v.eruption.source === "vona" ? `Eruption ${rel(v.eruption.time)}` : "Erupting") : v.ash ? "Ash emission" : (v.weekly?.status || "");
-      return `<div class="row${this._config.navigation_path ? " nav" : ""}"><canvas data-i="${i}" width="92" height="92"></canvas>`
+      const badge = `<span class="badge" style="background:${LEVEL_COLORS[v.level] || LEVEL_COLORS[0]}">${esc((LEVEL_NAMES[v.level] || "Unknown").toUpperCase())}</span>`;
+      return `<div class="row${details ? " det" : ""}${this._config.navigation_path ? " nav" : ""}"><canvas data-i="${i}" width="92" height="92"></canvas>`
         + `<div class="n">${esc(v.local || v.name)}<span class="muted">${esc(where)}</span></div>`
-        + `<div class="m"><span class="badge" style="background:${LEVEL_COLORS[v.level] || LEVEL_COLORS[0]}">${esc((LEVEL_NAMES[v.level] || "Unknown").toUpperCase())}</span><span class="muted">${esc(state)}</span></div></div>`;
+        + (details
+          ? this._rowDetails(v, badge)
+          : `<div class="m">${badge}${v.color ? `<span class="badge soft">VONA ${esc(v.color)}</span>` : ""}<span class="muted">${esc(state)}</span></div>`)
+        + `</div>`;
     });
     this._body.innerHTML = `<div class="wrap">${this._brand()}${rows.length ? `<div class="list">${rows.join("")}</div>` : `<div class="msg">None of these volcanoes is in the current reports.</div>`}</div>`;
     this._body.querySelectorAll(".row canvas").forEach((cv) => {
@@ -2168,6 +2195,38 @@ class MagmariumVolcanoCard extends HTMLElement {
       this._scenes.push({ kind: "icon", cv, v, erupt: eruptStrength(v), ej: this._ejectaFor(v) });
     });
     if (this._config.navigation_path) this._body.querySelectorAll(".row").forEach((r) => r.addEventListener("click", () => this._navigate()));
+  }
+
+  /** list row in detail mode: eruption, ash cloud, SIGMETs and the latest report */
+  _rowDetails(v, badge) {
+    const chips = [badge];
+    if (v.color && !(v.notice && v.notice.kind === "vona")) chips.push(`<span class="badge soft">VONA ${esc(v.color)}</span>`);
+    if (this._show("eruption") && v.eruption) {
+      const er = v.eruption;
+      chips.push(`<span class="chip hot">🌋 ${er.source === "vona" ? `Eruption ${esc(rel(er.time))}` : "Eruptive activity"}</span>`);
+    }
+    if (this._show("ash") && v.ash) {
+      const a = v.ash;
+      const h = a.above_summit_m != null ? `${fmtInt(a.above_summit_m)} m above summit` : a.top_m != null ? `up to ${fmtInt(a.top_m)} m` : "";
+      chips.push(`<span class="chip">☁️ Ash cloud${h ? ` ${h}` : ""}${a.toward_deg != null ? ` → ${compass(a.toward_deg)}` : ""}</span>`);
+    }
+    if (this._show("sigmets") && v.sigmets && v.sigmets.length) {
+      chips.push(`<span class="chip">✈ Ash SIGMET${v.sigmets.length > 1 ? ` ×${v.sigmets.length}` : ""}</span>`);
+    }
+    if (this._show("quakes") && v.quakes_7d) {
+      chips.push(`<span class="chip">〰 ${v.quakes_7d} quake${v.quakes_7d > 1 ? "s" : ""} 7 d${v.quake_max != null ? ` · M${v.quake_max}` : ""}</span>`);
+    }
+    let text = "";
+    if (this._show("notice")) {
+      const n = v.notice;
+      if (n && n.text) {
+        const head = n.kind === "vona" ? `VONA ${n.color || ""} · ${rel(n.time)}` : n.kind === "weekly" ? "Weekly report" : "Latest report";
+        text = `<div class="nt"><span class="muted">${esc(head)}</span> ${esc(tidyNotice(n.text))}</div>`;
+      } else if (v.weekly && v.weekly.text) {
+        text = `<div class="nt"><span class="muted">Weekly report ${esc(v.weekly.period || "")}</span> ${esc(v.weekly.text)}</div>`;
+      }
+    }
+    return `<div class="d"><div class="chips">${chips.join("")}</div>${text}</div>`;
   }
 
   // ------------------------------------------------------------------ one volcano
@@ -2371,7 +2430,9 @@ MagmariumVolcanoCard.prototype._camHtml = MagmariumCard.prototype._camHtml;
 const VC_LABELS = {
   volcano: "Volcano",
   volcanoes: "Several volcanoes as a list (instead of one)",
-  count: "Volcanoes in the list (most active first)",
+  count: "Volcanoes in the list",
+  sort: "List order",
+  details: "List with details (eruption, ash cloud, report)",
   name: "Name (empty = volcano name)",
   title: "Header (empty = Magmarium)",
   navigation_path: "Open on tap (e.g. /dashboard-volcano/globe)",
@@ -2424,6 +2485,8 @@ class MagmariumVolcanoCardEditor extends HTMLElement {
           { name: "name", selector: { text: {} } },
           { name: "title", selector: { text: {} } },
           { name: "count", selector: { number: { min: 1, max: 15, mode: "box" } } },
+          { name: "sort", selector: { select: { mode: "dropdown", options: [{ value: "activity", label: "Most active first" }, { value: "distance", label: "Nearest first" }] } } },
+          { name: "details", selector: { boolean: {} } },
         ],
       },
       { name: "navigation_path", selector: { text: {} } },
@@ -2442,6 +2505,8 @@ class MagmariumVolcanoCardEditor extends HTMLElement {
           else if (VC_SHOW.includes(k) && value[k] === true) delete value[k];
         }
         if (value.count === 5) delete value.count;
+        if (value.sort === "activity") delete value.sort;
+        if (value.details === false) delete value.details;
         this._config = value;
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: value }, bubbles: true, composed: true }));
       });
@@ -2449,7 +2514,7 @@ class MagmariumVolcanoCardEditor extends HTMLElement {
     }
     this._form.hass = this._hass;
     this._form.schema = this._schema();
-    const data = { volcano: "auto", count: 5, ...this._config };
+    const data = { volcano: "auto", count: 5, sort: "activity", details: false, ...this._config };
     for (const k of VC_SHOW) data[k] = this._config?.[k] !== false;
     this._form.data = data;
   }
