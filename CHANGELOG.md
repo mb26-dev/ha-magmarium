@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.5 - 2026-11-18
+
+- Older VONA notices are now loaded too: after the start, a few older pages are read per refresh until the last 120 days are covered, and the newest notice of every volcano is always kept. Volcanoes whose last VONA is weeks old (e.g. an eruption with an ash cloud in August) show it again instead of only the weekly report
+- Volcano list with `details: true`: the last reported eruption and ash cloud (height above sea level and above the summit, drift direction, age) also when the notice is older than the live window; "No ash cloud observed" when the newest notice saw none
+- VONA texts and times in the list are shown in the time zone of Home Assistant (e.g. "Eruption at 12:09 Bangkok time"), with the date of the notice; VONA texts are shown in full
+
 ## 0.1.4 - 2026-11-18
 
 - Volcano list: new option `sort: distance` shows the nearest volcanoes with a raised alert level, an eruption or ash first (or sorts your own `volcanoes` by distance); the distance is measured from your Home Assistant home location
