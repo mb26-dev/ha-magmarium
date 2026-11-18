@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -326,7 +326,8 @@ class MagmariumCard extends HTMLElement {
         <div class="stage">
           <canvas class="stars"></canvas>
           <canvas class="earth"></canvas>
-          <canvas class="fx"></canvas>
+          <!-- id "slider": hass-swipe-navigation leaves gestures on #slider alone, so dragging the globe does not switch views -->
+          <canvas class="fx" id="slider"></canvas>
           <div class="msg">Loading volcano data...</div>
           <div class="top">
             <div class="title"><b></b><span class="sub"></span></div>
