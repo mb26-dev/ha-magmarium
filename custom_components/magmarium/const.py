@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "magmarium"
-VERSION = "0.2.0b5"
+VERSION = "0.2.0b6"
 
 CONF_SOURCES = "sources"
 CONF_WATCHED = "watched_volcanoes"
@@ -67,7 +67,8 @@ SOURCE_DOWN_HOURS = 24
 WIND_MINUTES = 60
 OFFICIAL_MINUTES = 60
 SIGMET_MINUTES = 15
-QUAKE_MINUTES = 15
+QUAKE_MINUTES = 15  # full refresh: USGS M4.5+ of the week and M2.5+ of the day
+QUAKE_FAST_MINUTES = 2  # new quakes: USGS M2.5+ of the day (small file, updated by USGS every minute)
 WIKI_DAYS = 30
 CAMS_MINUTES = 6 * 60
 TSUNAMI_MINUTES = 5

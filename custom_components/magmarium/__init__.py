@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from aiohttp import web
@@ -13,6 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.http import KEY_HASS
 from homeassistant.helpers.typing import ConfigType
 
@@ -25,6 +27,7 @@ from .const import (
     DEFAULT_FIRMS_KEY,
     DEFAULT_SOURCES,
     DOMAIN,
+    QUAKE_FAST_MINUTES,
     URL_EARTH,
     URL_FRONTEND,
     URL_HISTORY,
@@ -102,6 +105,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
+    async def _fast_quakes(_now: datetime) -> None:
+        # new quakes reach the sensors within minutes; the regular update keeps its own schedule
+        if await data.async_refresh_quakes():
+            coordinator.data = coordinator.snapshot()
+            coordinator.async_update_listeners()
+
+    entry.async_on_unload(async_track_time_interval(hass, _fast_quakes, timedelta(minutes=QUAKE_FAST_MINUTES)))
     return True
 
 

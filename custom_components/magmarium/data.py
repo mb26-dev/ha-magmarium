@@ -76,6 +76,7 @@ from .extra import (
     IMO_URL,
     JMA_LIST_URL,
     JMA_WARNING_URL,
+    QUAKE_MAX,
     QUAKE_URLS,
     SIGMET_URL,
     USGS_URL,
@@ -336,6 +337,36 @@ class MagmariumData:
                 await self._async_save()
             await self.async_rebuild()
             return changed
+
+    async def async_refresh_quakes(self) -> bool:
+        """Fast path for new earthquakes: the small USGS day feed (M2.5+), merged into the list.
+
+        The full refresh (week and day feed) keeps its own interval; this only adds quakes
+        that are not known yet, so alerts follow within minutes. Returns True on new quakes.
+        """
+        if not self._enabled("quakes"):
+            return False
+        async with self._lock:
+            now = time.time()
+            st = self.feed_state.get("quakes") or {}
+            if now < float(st.get("retry_after") or 0):
+                return False
+            try:
+                text = await self._get(QUAKE_URLS[-1])
+                fresh = await self.hass.async_add_executor_job(parse_quakes, [text])
+            except FeedError as err:
+                _LOGGER.debug("Magmarium fast quake check failed: %s", err)
+                return False
+            except (ValueError, TypeError, KeyError, IndexError) as err:
+                _LOGGER.debug("Magmarium fast quake check: unexpected content: %s", err)
+                return False
+            known = {q.get("id") for q in self.quakes}
+            new = [q for q in fresh if q["id"] not in known]
+            if not new:
+                return False
+            self.quakes = sorted(new + self.quakes, key=lambda q: q["time"], reverse=True)[:QUAKE_MAX]
+            await self.async_rebuild()
+            return True
 
     async def _refresh_feed(self, feed: str) -> None:
         if feed == "catalog":
