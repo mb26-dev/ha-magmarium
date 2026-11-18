@@ -20,6 +20,21 @@ Active volcanoes on a living globe for Home Assistant. Magmarium shows **every v
 
 It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, adds **official alert levels from the USGS, the Icelandic Met Office and the Japan Meteorological Agency**, the **official volcanic ash areas for aviation (SIGMETs)** worldwide, **earthquakes** from the USGS and the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account.
 
+## Screenshots
+
+![Magmarium: the volcanoes of Indonesia with their official alert levels](docs/images/indonesia.jpg)
+
+| | |
+| --- | --- |
+| ![Semeru erupting: official report, ash SIGMET and wind drift](docs/images/eruption.jpg) | ![Live image of an official USGS volcano camera](docs/images/live-camera.jpg) |
+| **Eruption report:** official alert level, VONA notice, ash SIGMET and the simulated ash drift | **Live cameras:** the newest image of the observatory camera, right in the info panel |
+| ![Official volcanic ash areas over Central and South America at night](docs/images/ash-areas.jpg) | ![Replay of the eruptions and ash clouds of the last 90 days](docs/images/replay.jpg) |
+| **Ash areas:** official SIGMETs and earthquakes, glowing craters on the night side | **Replay:** the eruptions and ash clouds of the last 90 days |
+
+![The whole globe with every active volcano](docs/images/globe.jpg)
+
+<sub>Screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery.</sub>
+
 ## Features
 
 **Lovelace card** `custom:magmarium-card` (installed and registered automatically)
