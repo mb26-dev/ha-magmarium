@@ -24,11 +24,13 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    CONF_FIRE_RADIUS,
     CONF_FIRMS_KEY,
     CONF_PLACES,
     CONF_RADIUS,
     CONF_SOURCES,
     CONF_WATCHED,
+    DEFAULT_FIRE_RADIUS,
     DEFAULT_FIRMS_KEY,
     DEFAULT_PLACES,
     DEFAULT_RADIUS,
@@ -59,6 +61,9 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
             ),
             vol.Optional(CONF_FIRMS_KEY, default=defaults.get(CONF_FIRMS_KEY, DEFAULT_FIRMS_KEY)): TextSelector(
                 TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            ),
+            vol.Optional(CONF_FIRE_RADIUS, default=defaults.get(CONF_FIRE_RADIUS, DEFAULT_FIRE_RADIUS)): NumberSelector(
+                NumberSelectorConfig(min=0, max=20000, step=50, unit_of_measurement="km", mode=NumberSelectorMode.BOX)
             ),
         }
     )

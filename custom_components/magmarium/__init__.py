@@ -18,8 +18,10 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CARD_FILE,
+    CONF_FIRE_RADIUS,
     CONF_FIRMS_KEY,
     CONF_SOURCES,
+    DEFAULT_FIRE_RADIUS,
     DEFAULT_FIRMS_KEY,
     DEFAULT_SOURCES,
     DOMAIN,
@@ -80,7 +82,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     options = {**entry.data, **entry.options}
     sources = options.get(CONF_SOURCES, DEFAULT_SOURCES)
 
-    data = MagmariumData(hass, sources, options.get(CONF_FIRMS_KEY, DEFAULT_FIRMS_KEY))
+    data = MagmariumData(
+        hass,
+        sources,
+        options.get(CONF_FIRMS_KEY, DEFAULT_FIRMS_KEY),
+        float(options.get(CONF_FIRE_RADIUS, DEFAULT_FIRE_RADIUS) or 0),
+    )
     await data.async_load()
 
     coordinator = MagmariumCoordinator(hass, entry, data)

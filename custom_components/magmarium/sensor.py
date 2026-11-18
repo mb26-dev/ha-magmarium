@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
@@ -12,10 +12,19 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import slugify
 
-from .const import CONF_FIRMS_KEY, CONF_WATCHED, DEFAULT_WATCHED, DOMAIN, LEVEL_KEYS
+from .const import (
+    CONF_FIRE_RADIUS,
+    CONF_FIRMS_KEY,
+    CONF_WATCHED,
+    DEFAULT_FIRE_RADIUS,
+    DEFAULT_WATCHED,
+    DOMAIN,
+    LEVEL_KEYS,
+)
 from .coordinator import MagmariumCoordinator
 from .entity import MagmariumEntity
 from .extra import wiki_url
+from .hazards import compass, fire_summary
 from .model import nearest
 from .parsing import haversine_km
 
@@ -63,6 +72,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     ]
     if (options.get(CONF_FIRMS_KEY) or "").strip():
         entities.append(ThermalSensor(coordinator, entry))
+        if float(options.get(CONF_FIRE_RADIUS, DEFAULT_FIRE_RADIUS) or 0) > 0:
+            entities.append(WildfireSensor(coordinator, entry))
     for name in parse_watched(options.get(CONF_WATCHED, DEFAULT_WATCHED)):
         entities.append(VolcanoSensor(coordinator, entry, name))
     async_add_entities(entities)
@@ -295,6 +306,67 @@ class ThermalSensor(MagmariumEntity, SensorEntity):
                 }
                 for v in self._list()[:MAX_LIST]
             ]
+        }
+
+
+FIRE_LIST = 25
+
+
+class WildfireSensor(MagmariumEntity, SensorEntity):
+    """Wildfire clusters around home seen by satellite in the last 24 h (NASA FIRMS, VIIRS)."""
+
+    _attr_translation_key = "wildfires"
+    _attr_icon = "mdi:fire"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "fires"
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "wildfires")
+
+    def _summary(self) -> dict[str, Any]:
+        fires = (self.coordinator.data or {}).get("fires") or []
+        return fire_summary(fires, datetime.now(timezone.utc))
+
+    @property
+    def native_value(self) -> int:
+        return self._summary()["count"]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self.coordinator.data or {}
+        now = datetime.now(timezone.utc)
+        summ = fire_summary(data.get("fires") or [], now)
+        all_fires = data.get("fires") or []
+        since = (now - timedelta(hours=24)).isoformat()
+        recent = sorted((c for c in all_fires if c["time"] >= since), key=lambda c: c["km"])
+        near, strong = summ["nearest"], summ["strongest"]
+        meta = self.coordinator.store.fires_meta or {}
+        return {
+            "nearest_km": near["km"] if near else None,
+            "nearest_direction": compass(near["bearing"]) if near else None,
+            "nearest_power_mw": near["frp_mw"] if near else None,
+            "strongest_mw": strong["frp_mw"] if strong else None,
+            "strongest_km": strong["km"] if strong else None,
+            "within_25_km": summ["within_25_km"],
+            "within_100_km": summ["within_100_km"],
+            "within_300_km": summ["within_300_km"],
+            "total_power_mw": summ["total_mw"],
+            "fires_48h": len(all_fires),
+            "radius_km": meta.get("radius_km"),
+            "satellite_hotspots": meta.get("hotspots"),
+            "updated": meta.get("updated"),
+            "fires": [
+                {
+                    "lat": c["lat"],
+                    "lon": c["lon"],
+                    "distance_km": c["km"],
+                    "direction": compass(c["bearing"]),
+                    "power_mw": c["frp_mw"],
+                    "detections": c["count"],
+                    "last_seen": c["time"],
+                }
+                for c in recent[:FIRE_LIST]
+            ],
         }
 
 

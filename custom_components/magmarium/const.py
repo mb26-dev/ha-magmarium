@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "magmarium"
-VERSION = "0.2.0b2"
+VERSION = "0.2.0b3"
 
 CONF_SOURCES = "sources"
 CONF_WATCHED = "watched_volcanoes"
@@ -11,6 +11,7 @@ CONF_WATCHED = "watched_volcanoes"
 CONF_PLACES = "places"
 CONF_RADIUS = "ash_radius_km"
 CONF_FIRMS_KEY = "firms_map_key"
+CONF_FIRE_RADIUS = "fire_radius_km"
 
 SOURCE_MAGMA = "magma"
 SOURCE_GVP_WEEKLY = "gvp_weekly"
@@ -32,6 +33,8 @@ DEFAULT_WATCHED = ""
 DEFAULT_PLACES = ["zone.home"]
 DEFAULT_RADIUS = 150
 DEFAULT_FIRMS_KEY = ""
+# wildfires around home (needs the FIRMS key); 0 switches them off, 20000 covers the world
+DEFAULT_FIRE_RADIUS = 1500
 
 # MAGMA Indonesia (Center for Volcanology and Geological Hazard Mitigation, PVMBG)
 MAGMA_VONA_URL = "https://magma.esdm.go.id/v1/vona"
@@ -71,6 +74,7 @@ TSUNAMI_MINUTES = 5
 THERMAL_MINUTES = 3 * 60
 # satellite hotspots older than this are not shown
 THERMAL_MAX_HOURS = 48
+FIRE_MINUTES = 60
 HISTORY_DAYS = 90
 
 # a VONA ash cloud is shown as a live plume for this long, fading out
