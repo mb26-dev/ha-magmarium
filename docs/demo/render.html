@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Magmarium screenshots</title>
+<style>
+  html, body { margin: 0; background: #03050a; overflow: hidden; }
+  #wrap { width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<div id="wrap"></div>
+<script type="module">
+// Renders the real Magmarium card with a data snapshot (docs/demo/payload.json).
+// Used by docs/demo/render.py to create the screenshots in docs/images.
+const payload = await (await fetch("payload.json")).json();
+const history = await (await fetch("history.json")).json();
+
+// freeze the clock at the time of the snapshot so ages and day / night match it
+const snapshot = payload.updated * 1000;
+const start = performance.now();
+const realNow = Date.now.bind(Date);
+Date.now = () => snapshot + (performance.now() - start);
+
+const json = (data) => new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } });
+const hass = {
+  config: { latitude: -6.2, longitude: 106.8 },
+  fetchWithAuth: async (url) => {
+    if (url.includes("/volcanoes")) return json(payload);
+    if (url.includes("/history")) return json(history);
+    if (url.includes("/earth/day")) return fetch("earth_day.jpg");
+    if (url.includes("/earth/night")) return fetch("earth_night.jpg");
+    return new Response("{}", { status: 404 });
+  },
+};
+
+await import("../../custom_components/magmarium/frontend/magmarium-card.js");
+const params = new URLSearchParams(location.search);
+const card = document.createElement("magmarium-card");
+card.setConfig({ height: window.innerHeight, center: params.get("center") || "indonesia" });
+document.getElementById("wrap").appendChild(card);
+card.hass = hass;
+window.__card = card;
+window.__realNow = realNow;
+</script>
+</body>
+</html>
