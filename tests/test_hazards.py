@@ -105,3 +105,75 @@ def test_firms():
     with pytest.raises(hz.FirmsKeyError):
         hz.parse_firms("Invalid MAP_KEY.")
     assert hz.firms_area(-8.108, 112.922) == "112.862,-8.168,112.982,-8.048"
+
+
+# ------------------------------------------------------------------ wildfires
+
+FIRE_NOW = datetime(2026, 11, 18, 10, 0, tzinfo=timezone.utc)
+HOME = (8.08, 98.83)
+
+
+def _pt(lat, lon, frp, hour=6, src="VIIRS NOAA-20", day=18):
+    return {"lat": lat, "lon": lon, "frp": frp, "time": f"2026-11-{day:02d}T{hour:02d}:30:00+00:00", "src": src}
+
+
+def test_fire_area_box_and_world():
+    w, s, e, n = (float(v) for v in hz.fire_area(8.0, 99.0, 1500).split(","))
+    assert s == pytest.approx(8.0 - 1500 / 111, abs=0.01)
+    assert n == pytest.approx(8.0 + 1500 / 111, abs=0.01)
+    assert w < 99.0 - 13 and e > 99.0 + 13
+    assert hz.fire_area(8.0, 99.0, 20000) == "world"
+    # a box across the date line falls back to the full longitude range
+    w, _s, e, _n = hz.fire_area(0.0, 179.0, 500).split(",")
+    assert (w, e) == ("-180.000", "180.000")
+
+
+def test_cluster_fires_groups_near_home_and_uses_one_satellite():
+    pts = [
+        _pt(8.201, 98.901, 10.0),
+        _pt(8.202, 98.902, 20.0),
+        _pt(8.203, 98.903, 12.0, hour=7, src="VIIRS S-NPP"),
+        _pt(8.70, 99.40, 5.0),
+    ]
+    out = hz.cluster_fires(pts, HOME, 1500, [], FIRE_NOW)
+    assert len(out) == 2
+    big = out[0]
+    # NOAA-20 saw 30 MW in two pixels, S-NPP 12 MW in one: the larger is used, not the sum
+    assert big["count"] == 2 and big["frp_mw"] == 30.0
+    assert big["max_mw"] == 20.0
+    assert big["time"].startswith("2026-11-18T07:30")
+    assert big["cell_deg"] == hz.FIRE_FINE_DEG
+    assert big["km"] == pytest.approx(15.6, abs=1.5)
+    assert big["satellites"] == ["VIIRS NOAA-20", "VIIRS S-NPP"]
+    assert 0 <= big["bearing"] <= 90
+
+
+def test_cluster_fires_drops_volcanoes_old_and_far_points():
+    pts = [
+        _pt(-7.54, 110.446, 80.0),  # at Merapi
+        _pt(8.30, 98.90, 4.0, day=15),  # three days old
+        _pt(30.0, 120.0, 9.0),  # outside the radius
+        _pt(8.30, 98.90, 4.0),
+    ]
+    out = hz.cluster_fires(pts, HOME, 1500, [(-7.542, 110.442)], FIRE_NOW)
+    assert len(out) == 1 and out[0]["frp_mw"] == 4.0
+
+
+def test_cluster_fires_coarse_cells_far_from_home():
+    pts = [_pt(0.51, 101.41, 8.0), _pt(0.62, 101.33, 9.0), _pt(0.71, 101.12, 3.0)]
+    out = hz.cluster_fires(pts, HOME, 1500, [], FIRE_NOW)
+    assert len(out) == 1
+    assert out[0]["cell_deg"] == hz.FIRE_COARSE_DEG and out[0]["count"] == 3
+
+
+def test_fire_summary_counts_last_day():
+    clusters = hz.cluster_fires(
+        [_pt(8.10, 98.85, 3.0), _pt(8.9, 99.6, 50.0), _pt(9.5, 100.0, 7.0, day=17, hour=1)],
+        HOME, 1500, [], FIRE_NOW,
+    )
+    summ = hz.fire_summary(clusters, FIRE_NOW)
+    assert summ["count"] == 2
+    assert summ["within_25_km"] == 1
+    assert summ["nearest"]["km"] < 5
+    assert summ["strongest"]["frp_mw"] == 50.0
+    assert hz.compass(0) == "N" and hz.compass(100) == "E" and hz.compass(350) == "N"
