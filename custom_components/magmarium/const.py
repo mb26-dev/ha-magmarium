@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "magmarium"
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 
 CONF_SOURCES = "sources"
 CONF_WATCHED = "watched_volcanoes"
