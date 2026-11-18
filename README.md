@@ -39,11 +39,15 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 
 ![Wildfire card: relief map with places and the nearest fires, and the satellite image of the region](docs/images/fire-card.jpg)
 
+**Earthquakes and tsunamis:** the quakes of the week around home on the same zoomable map, sized and coloured by magnitude, with official tsunami bulletins
+
+![Earthquake card: the quakes of the week around home on the relief map with places and the newest quakes, and the satellite image of the region](docs/images/quake-card.jpg)
+
 **Compact volcano card for the home dashboard:** an animated volcano with its ash plume, the nearest volcanoes with eruption, ash cloud and the latest report (long reports open with "Show more"), or a list of the most active volcanoes, without the globe
 
 ![Compact volcano cards: an erupting volcano with ash plume, the detailed list sorted by distance with an opened report, and the most active volcanoes](docs/images/volcano-card.jpg)
 
-<sub>All screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery. The wildfires are the real fires of the last 24 hours in South East Asia from the public NASA FIRMS files, shown around the place where most of them burn.</sub>
+<sub>All screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery. The wildfires are the real fires of the last 24 hours in South East Asia from the public NASA FIRMS files, shown around the place where most of them burn. The earthquakes are the real USGS quakes of the week, around the place on the Ring of Fire with the most of them.</sub>
 
 ## Features
 
@@ -129,7 +133,7 @@ All settings are done in the UI and can be changed later under **Configure**:
 | NASA FIRMS map key | empty | Optional. A free key from [firms.modaps.eosdis.nasa.gov/api/map_key](https://firms.modaps.eosdis.nasa.gov/api/map_key/) switches on the satellite hotspots (VIIRS) at volcanoes with a raised alert level, an eruption or ash (checked every 3 hours) and the wildfires. |
 | Wildfire radius around home | 1500 km | Wildfires within this distance of your home location, checked every hour (needs the FIRMS key). 0 switches them off, 20000 covers the world. |
 
-Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), official alert levels every hour, ash SIGMETs and earthquakes every 15 minutes, tsunami bulletins every 5 minutes, satellite hotspots every 3 hours and wildfires every hour (with a FIRMS key), the volcano catalogue and the Wikipedia links once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
+Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), official alert levels every hour, ash SIGMETs every 15 minutes, earthquakes every 15 minutes with a quick check for new quakes every 2 minutes, tsunami bulletins every 5 minutes, satellite hotspots every 3 hours and wildfires every hour (with a FIRMS key), the volcano catalogue and the Wikipedia links once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
 
 ## The card
 
@@ -255,19 +259,6 @@ views:                    # like the wildfire card
     radius_km: 900
 ```
 
-### Lightning card
-
-`custom:magmarium-lightning-card` turns the strikes of the [Blitzortung](https://github.com/mrk-its/homeassistant-blitzortung) integration into a live radar around your home: range rings and a sweep, fresh strikes flash and send a shock wave, the newest get the lightning marker, older ones fade. Tiles for the last 10 minutes and the last hour, the nearest strike and the storm trend (approaching, steady or moving away), and a list of the newest strikes. Needs the Blitzortung integration; nothing else is downloaded.
-
-```yaml
-type: custom:magmarium-lightning-card
-title: Lightning Watch
-radius_km: 100            # the radius set in the Blitzortung integration
-minutes: 120              # its time window
-distance_entity: sensor.home_lightning_distance   # optional
-places: []
-```
-
 ### Region buttons
 
 A second row of buttons flies the globe to a volcanic region. Each button shows how many volcanoes there are currently active, with a dot in the colour of the highest alert level; quiet regions are dimmed. Once a region is zoomed in, the quiet volcanoes are labelled too.
@@ -369,8 +360,7 @@ A star on GitHub, a bug report or a screenshot of your dashboard helps just as m
 - Tsunami warnings: [NOAA Tsunami Warning Centers](https://www.tsunami.gov) (PTWC, NTWC) and [BMKG InaTEWS](https://inatews.bmkg.go.id)
 - Satellite hotspots and wildfires: [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) (VIIRS, LANCE / EOSDIS)
 - Wildfire map tiles: [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) (Blue Marble shaded relief, VIIRS NOAA-20 corrected reflectance, coastlines)
-- Tsunami, wildfire, earthquake and lightning icons: designed for Magmarium by mb26-dev
-- Lightning strikes: [Blitzortung.org](https://www.blitzortung.org) through the Blitzortung integration of Home Assistant
+- Tsunami, wildfire and earthquake icons: designed for Magmarium by mb26-dev
 - Wikipedia links: [Wikidata](https://www.wikidata.org) (CC0)
 - Volcano cameras: [USGS Volcano Hazards Program AshCam](https://avo-volcview.wr.usgs.gov/ashcam-gui/webcam.html), [GeoNet / GNS Science](https://www.geonet.org.nz/volcano/cameras), [Japan Meteorological Agency](https://www.data.jma.go.jp/vois/data/obs/volcam/volcam.php), [MAGMA Indonesia](https://magma.esdm.go.id/v1/gunung-api/cctv)
 - Winds aloft: [Open-Meteo](https://open-meteo.com) (CC BY 4.0)

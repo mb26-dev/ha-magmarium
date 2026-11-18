@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0b6 - 2026-11-18
+
+- New earthquakes arrive within 2 minutes: besides the full update every 15 minutes, Magmarium checks the small USGS feed of the day every 2 minutes, so sensors and automations react right away
+- The lightning card moved to [Sea State Forecast](https://github.com/mb26-dev/ha-sea-state) as `custom:sea-state-lightning-card`: lightning is weather, Magmarium stays with what comes from the earth. If you used `magmarium-lightning-card`, install Sea State Forecast 0.1.0b9 and change the card type, the options stay the same
+- Fixed: the seismic waves of quakes in the western hemisphere could flicker
+- README: screenshot of the earthquake card, rendered from the real USGS quakes of the week
+
 ## 0.2.0b5 - 2026-11-18
 
 - **New earthquake card** `custom:magmarium-quake-card`: the earthquakes around home on the zoomable NASA map, coloured and sized by magnitude, seismic waves for the last 24 hours, an animated quake marker on the strongest, tsunami bulletins with waves and a banner, tiles and a list with distance, direction and depth

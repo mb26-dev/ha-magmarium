@@ -3,3 +3,5 @@ __pycache__/
 .DS_Store
 docs/demo/fires_*.csv
 docs/demo/fires.json
+docs/demo/quakes_*.geojson
+docs/demo/quakes.json
