@@ -1,0 +1,130 @@
+blueprint:
+  name: Magmarium eruption and tsunami near you
+  description: >-
+    Runs your actions when a volcano within your radius erupts (official VONA notice)
+    or when a tsunami bulletin is issued with the epicentre within your radius.
+    In your actions, use the variables `title` and `message`, e.g. in a notification
+    or an announcement. For ash near a place, use the "Ash near a place" blueprint.
+  domain: automation
+  author: mb26-dev
+  source_url: https://github.com/mb26-dev/ha-magmarium/blob/main/blueprints/automation/magmarium/eruption_tsunami_near_you.yaml
+  input:
+    erupting_sensor:
+      name: Erupting volcanoes sensor
+      description: The Magmarium sensor "Erupting volcanoes".
+      selector:
+        entity:
+          filter:
+            - integration: magmarium
+              domain: sensor
+    eruption_radius:
+      name: Eruption radius
+      description: Alert for a new eruption within this distance of your home (0 = no eruption alerts).
+      default: 1500
+      selector:
+        number:
+          min: 0
+          max: 20000
+          step: 100
+          unit_of_measurement: km
+          mode: box
+    tsunami_sensor:
+      name: Tsunami sensor
+      description: The Magmarium sensor "Tsunami alerts".
+      selector:
+        entity:
+          filter:
+            - integration: magmarium
+              domain: sensor
+    tsunami_level:
+      name: Lowest tsunami level
+      description: Alert from this level up.
+      default: advisory
+      selector:
+        select:
+          options:
+            - label: Information statement and up
+              value: information
+            - label: Advisory, watch and warning
+              value: advisory
+            - label: Watch and warning
+              value: watch
+            - label: Warning only
+              value: warning
+    tsunami_radius:
+      name: Tsunami radius
+      description: Alert for tsunami bulletins with the epicentre within this distance of your home.
+      default: 3000
+      selector:
+        number:
+          min: 100
+          max: 20000
+          step: 100
+          unit_of_measurement: km
+          mode: box
+    actions:
+      name: Actions
+      description: What to do, e.g. send a notification with the variables title and message.
+      selector:
+        action: {}
+
+mode: queued
+max: 10
+
+triggers:
+  - trigger: state
+    entity_id: !input erupting_sensor
+    id: eruption
+  - trigger: state
+    entity_id: !input tsunami_sensor
+    id: tsunami
+
+variables:
+  eruption_radius: !input eruption_radius
+  tsunami_radius: !input tsunami_radius
+  tsunami_level: !input tsunami_level
+  ranks:
+    information: 1
+    advisory: 2
+    watch: 3
+    warning: 4
+  alert: >-
+    {%- set out = namespace(title='', message='') -%}
+    {%- if trigger.id == 'eruption' and eruption_radius | float(0) > 0 and trigger.to_state is not none -%}
+      {%- set old = (trigger.from_state.attributes.volcanoes if trigger.from_state is not none else []) | default([], true)
+         | selectattr('source', 'eq', 'vona') | map(attribute='name') | list -%}
+      {%- set ns = namespace(items=[]) -%}
+      {%- for v in trigger.to_state.attributes.volcanoes | default([], true) -%}
+        {%- if v.source == 'vona' and v.name not in old and v.distance_km is number and v.distance_km <= eruption_radius | float(0) -%}
+          {%- set ns.items = ns.items + [v.name ~ ' (' ~ v.country ~ ', ' ~ v.distance_km ~ ' km' ~ (', ash cloud' if v.ash_cloud else '') ~ ')'] -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- if ns.items -%}
+        {%- set out.title = 'Volcano eruption' -%}
+        {%- set out.message = 'New eruption: ' ~ ns.items | join(', ') -%}
+      {%- endif -%}
+    {%- elif trigger.id == 'tsunami' and trigger.to_state is not none -%}
+      {%- set seen = (trigger.from_state.attributes.events if trigger.from_state is not none else []) | default([], true)
+         | map(attribute='time') | list -%}
+      {%- set ns = namespace(items=[]) -%}
+      {%- for e in trigger.to_state.attributes.events | default([], true) -%}
+        {%- if e.time not in seen and ranks.get(e.level, 0) >= ranks.get(tsunami_level, 2)
+              and e.distance_km is number and e.distance_km <= tsunami_radius | float(0) -%}
+          {%- set ns.items = ns.items + ['Tsunami ' ~ e.level ~ ': ' ~ e.region ~ (' M' ~ e.magnitude if e.magnitude else '') ~ ', ' ~ e.distance_km ~ ' km from home'] -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- if ns.items -%}
+        {%- set out.title = 'Tsunami alert' -%}
+        {%- set out.message = ns.items | join('; ') -%}
+      {%- endif -%}
+    {%- endif -%}
+    {{ {'title': out.title, 'message': out.message} }}
+  title: "{{ alert.title }}"
+  message: "{{ alert.message }}"
+
+conditions:
+  - condition: template
+    value_template: "{{ message | length > 0 }}"
+
+actions:
+  - sequence: !input actions
