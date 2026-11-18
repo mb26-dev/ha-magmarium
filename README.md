@@ -47,7 +47,7 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 
 ![Compact volcano cards: an erupting volcano with ash plume, the detailed list sorted by distance with an opened report, and the most active volcanoes](docs/images/volcano-card.jpg)
 
-<sub>All screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery. The wildfires are the real fires of the last 24 hours in South East Asia from the public NASA FIRMS files, shown around the place where most of them burn. The earthquakes are the real USGS quakes of the week, around the place on the Ring of Fire with the most of them.</sub>
+<sub>All screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery. The wildfires are the real fires of the last 24 hours in South East Asia from the public NASA FIRMS files, shown around the place where most of them burn. The earthquakes are the real USGS quakes of the week, around the place on the Ring of Fire where they were strongest.</sub>
 
 ## Features
 
