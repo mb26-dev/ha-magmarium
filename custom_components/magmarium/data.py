@@ -50,8 +50,12 @@ from .const import (
     SOURCE_OFFICIAL,
     SOURCE_QUAKES,
     SOURCE_SIGMET,
+    SOURCE_TSUNAMI,
     STORAGE_KEY,
     STORAGE_VERSION,
+    THERMAL_MAX_HOURS,
+    THERMAL_MINUTES,
+    TSUNAMI_MINUTES,
     VERSION,
     VONA_MAX_AGE_DAYS,
     WIKI_DAYS,
@@ -84,8 +88,24 @@ from .extra import (
     parse_usgs,
     parse_wikidata,
 )
+from .hazards import (
+    BMKG_LATEST_URL,
+    BMKG_RECENT_URL,
+    FIRMS_DAYS,
+    FIRMS_SOURCES,
+    FIRMS_URL,
+    TSUNAMI_ATOM_URLS,
+    FirmsKeyError,
+    active_tsunami,
+    firms_area,
+    merge_thermal,
+    parse_bmkg,
+    parse_firms,
+    parse_tsunami_atom,
+    thermal_summary,
+)
 from .model import build_history, build_volcanoes
-from .parsing import parse_gvp_catalog, parse_gvp_weekly, parse_level_page, parse_vona_list
+from .parsing import haversine_km, parse_gvp_catalog, parse_gvp_weekly, parse_level_page, parse_vona_list
 from .wind import build_url as wind_url, parse_response as parse_wind, points_key, wind_for, wind_points
 
 _LOGGER = logging.getLogger(__name__)
@@ -118,9 +138,12 @@ FEEDS = {
     "quakes": (SOURCE_QUAKES, QUAKE_MINUTES),
     "wiki": (None, WIKI_DAYS * 24 * 60),
     "cams": (None, CAMS_MINUTES),
+    "tsunami": (SOURCE_TSUNAMI, TSUNAMI_MINUTES),
+    # only with a NASA FIRMS map key
+    "thermal": (None, THERMAL_MINUTES),
 }
 # feeds read in the main loop, in this order
-MAIN_FEEDS = ("catalog", "wiki", "magma_levels", "magma_vona", "gvp_weekly", "usgs", "imo", "jma", "sigmet", "quakes", "cams")
+MAIN_FEEDS = ("catalog", "wiki", "magma_levels", "magma_vona", "gvp_weekly", "usgs", "imo", "jma", "sigmet", "quakes", "cams", "tsunami", "thermal")
 # repair issues are raised per source, for the feeds of that source
 REPAIR_SOURCES = (SOURCE_MAGMA, SOURCE_GVP_WEEKLY, SOURCE_OFFICIAL, SOURCE_SIGMET, SOURCE_QUAKES)
 
@@ -132,9 +155,10 @@ class FeedError(Exception):
 class MagmariumData:
     """Downloads, caches and merges all volcano sources."""
 
-    def __init__(self, hass: HomeAssistant, sources: list[str]) -> None:
+    def __init__(self, hass: HomeAssistant, sources: list[str], firms_key: str | None = None) -> None:
         self.hass = hass
         self.sources = list(sources)
+        self.firms_key = (firms_key or "").strip()
         self._store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._lock = asyncio.Lock()
         self.catalog: list[list[Any]] = []
@@ -154,6 +178,9 @@ class MagmariumData:
         # official volcano cameras per provider
         self.cams: dict[str, list[dict[str, Any]]] = {}
         self.cam_map: dict[str, list[dict[str, Any]]] = {}
+        # tsunami bulletins of all sources, satellite hotspots per volcano id
+        self.tsunami: list[dict[str, Any]] = []
+        self.thermal: dict[str, dict[str, Any]] = {}
         self.history_json: bytes | None = None
         self.history_gzip: bytes | None = None
         self._history_key: str = ""
@@ -189,6 +216,8 @@ class MagmariumData:
             self.quakes = stored.get("quakes") or []
             self.wiki = stored.get("wiki") or {}
             self.cams = stored.get("cams") or {}
+            self.tsunami = stored.get("tsunami") or []
+            self.thermal = stored.get("thermal") or {}
             self.feed_state = stored.get("feeds") or {}
         await self.async_rebuild()
 
@@ -207,12 +236,16 @@ class MagmariumData:
             "quakes": self.quakes,
             "wiki": self.wiki,
             "cams": self.cams,
+            "tsunami": self.tsunami,
+            "thermal": self.thermal,
             "feeds": self.feed_state,
         })
 
     # --------------------------------------------------------------- feeds
 
     def _enabled(self, feed: str) -> bool:
+        if feed == "thermal":
+            return bool(self.firms_key)
         source = FEEDS[feed][0]
         return source is None or source in self.sources
 
@@ -317,6 +350,69 @@ class MagmariumData:
             self.quakes = await self.hass.async_add_executor_job(parse_quakes, texts)
         elif feed == "cams":
             await self._refresh_cams()
+        elif feed == "tsunami":
+            await self._refresh_tsunami()
+        elif feed == "thermal":
+            await self._refresh_thermal()
+
+    async def _refresh_tsunami(self) -> None:
+        """NOAA warning centers and BMKG; one failing source keeps the others."""
+        events: list[dict[str, Any]] = []
+        errors: list[str] = []
+        for center, url in TSUNAMI_ATOM_URLS.items():
+            try:
+                text = await self._get(url)
+                events += await self.hass.async_add_executor_job(parse_tsunami_atom, text, center)
+            except Exception as err:  # noqa: BLE001
+                errors.append(f"NOAA {center}: {err}")
+        try:
+            texts = [await self._get(BMKG_LATEST_URL), await self._get(BMKG_RECENT_URL)]
+            events += await self.hass.async_add_executor_job(parse_bmkg, texts)
+        except Exception as err:  # noqa: BLE001
+            errors.append(f"BMKG: {err}")
+        if len(errors) == 3:
+            raise FeedError("; ".join(errors))
+        if errors:
+            _LOGGER.warning("Some tsunami sources could not be loaded: %s", "; ".join(errors))
+            # keep the bulletins of the failing sources from the last time
+            failed = [e.split(":")[0] for e in errors]
+            events += [ev for ev in self.tsunami if any(ev["source"].startswith(prefix) for prefix in failed)]
+        self.tsunami = events
+
+    async def _refresh_thermal(self) -> None:
+        """NASA FIRMS hotspots around every volcano with a raised alert level, an eruption or ash."""
+        targets = [
+            v for v in (self.result.get("volcanoes") or [])
+            if v.get("lat") is not None and ((v.get("level") or 0) >= 2 or v.get("eruption") or v.get("ash"))
+        ]
+        sem = asyncio.Semaphore(4)
+        found: dict[str, dict[str, Any]] = {}
+        failures: list[str] = []
+
+        async def one(v: dict[str, Any]) -> None:
+            summary = None
+            for source in FIRMS_SOURCES:
+                url = FIRMS_URL.format(key=self.firms_key, source=source, area=firms_area(v["lat"], v["lon"]), days=FIRMS_DAYS)
+                async with sem:
+                    text = await self._get(url)
+                points = await self.hass.async_add_executor_job(parse_firms, text)
+                label = "VIIRS NOAA-20" if "NOAA20" in source else "VIIRS S-NPP"
+                summary = merge_thermal(summary, thermal_summary(points, v["lat"], v["lon"], label))
+            if summary:
+                found[v["id"]] = summary
+
+        for v in targets:
+            try:
+                await one(v)
+            except FirmsKeyError as err:
+                raise FeedError(f"NASA FIRMS refused the map key: {err}") from err
+            except Exception as err:  # noqa: BLE001
+                failures.append(f"{v['name']}: {err}")
+                if len(failures) >= 5 and not found:
+                    raise FeedError("; ".join(failures[:5])) from err
+        if failures:
+            _LOGGER.debug("Thermal anomalies not loaded for %s volcanoes: %s", len(failures), failures[:5])
+        self.thermal = found
 
     async def _refresh_cams(self) -> None:
         """Official camera lists; a provider that fails keeps its last list."""
@@ -559,6 +655,21 @@ class MagmariumData:
                 v["quake_max"] = max(mags) if mags else None
         result["quakes"] = quakes
 
+        # tsunami bulletins in force, with the distance from home
+        tsunami: list[dict[str, Any]] = []
+        if SOURCE_TSUNAMI in self.sources:
+            home = (self.hass.config.latitude, self.hass.config.longitude)
+            for ev in active_tsunami(self.tsunami, now):
+                ev["home_km"] = round(haversine_km(home[0], home[1], ev["lat"], ev["lon"])) if home[0] is not None else None
+                tsunami.append(ev)
+        result["tsunami"] = tsunami
+
+        # satellite hotspots at the summit (NASA FIRMS)
+        oldest = (now - timedelta(hours=THERMAL_MAX_HOURS)).isoformat()
+        for v in volcanoes:
+            t = self.thermal.get(v["id"]) if self.firms_key else None
+            v["thermal"] = t if t and t["time"] >= oldest else None
+
         # official volcano cameras
         all_cams = [c for key in ("usgs", "jma", "magma") for c in self.cams.get(key) or []] + geonet_cams()
         self.cam_map = link_cams(self.catalog, all_cams)
@@ -587,6 +698,11 @@ class MagmariumData:
                 key: [[c["src"], c["name"], c["img"], c["page"], c["time"]] for c in cams]
                 for key, cams in self.cam_map.items()
             },
+            "tsunami": [
+                {k: ev.get(k) for k in ("level", "category", "bulletin", "region", "lat", "lon", "mag", "time", "url", "sources", "home_km")}
+                for ev in tsunami
+            ],
+            "thermal_enabled": bool(self.firms_key),
         }
         raw = json.dumps(payload, separators=(",", ":")).encode()
         self.payload_json = raw
@@ -741,6 +857,7 @@ def _card_volcano(v: dict[str, Any]) -> dict[str, Any]:
         "quakes_7d": v.get("quakes_7d") or 0,
         "quake_max": v.get("quake_max"),
         "wiki": v.get("wiki"),
+        "thermal": v.get("thermal"),
     }
     return out
 

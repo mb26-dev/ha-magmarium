@@ -18,7 +18,9 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CARD_FILE,
+    CONF_FIRMS_KEY,
     CONF_SOURCES,
+    DEFAULT_FIRMS_KEY,
     DEFAULT_SOURCES,
     DOMAIN,
     URL_EARTH,
@@ -62,6 +64,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 store[CONF_SOURCES] = list(dict.fromkeys([*store[CONF_SOURCES], *new_sources]))
         hass.config_entries.async_update_entry(entry, data=data, options=options, version=2)
         _LOGGER.info("Magmarium settings migrated to version 2: new sources switched on")
+    if entry.version == 2:
+        data = {**entry.data}
+        options = {**entry.options}
+        for store in (data, options):
+            if CONF_SOURCES in store:
+                store[CONF_SOURCES] = list(dict.fromkeys([*store[CONF_SOURCES], "tsunami"]))
+        hass.config_entries.async_update_entry(entry, data=data, options=options, version=3)
+        _LOGGER.info("Magmarium settings migrated to version 3: tsunami warnings switched on")
     return True
 
 
@@ -70,7 +80,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     options = {**entry.data, **entry.options}
     sources = options.get(CONF_SOURCES, DEFAULT_SOURCES)
 
-    data = MagmariumData(hass, sources)
+    data = MagmariumData(hass, sources, options.get(CONF_FIRMS_KEY, DEFAULT_FIRMS_KEY))
     await data.async_load()
 
     coordinator = MagmariumCoordinator(hass, entry, data)

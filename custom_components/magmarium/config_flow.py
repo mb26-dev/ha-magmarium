@@ -19,13 +19,17 @@ from homeassistant.helpers.selector import (
     SelectSelectorConfig,
     SelectSelectorMode,
     TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
 )
 
 from .const import (
+    CONF_FIRMS_KEY,
     CONF_PLACES,
     CONF_RADIUS,
     CONF_SOURCES,
     CONF_WATCHED,
+    DEFAULT_FIRMS_KEY,
     DEFAULT_PLACES,
     DEFAULT_RADIUS,
     DEFAULT_SOURCES,
@@ -53,6 +57,9 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
             vol.Optional(CONF_RADIUS, default=defaults.get(CONF_RADIUS, DEFAULT_RADIUS)): NumberSelector(
                 NumberSelectorConfig(min=10, max=2000, step=10, unit_of_measurement="km", mode=NumberSelectorMode.BOX)
             ),
+            vol.Optional(CONF_FIRMS_KEY, default=defaults.get(CONF_FIRMS_KEY, DEFAULT_FIRMS_KEY)): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD)
+            ),
         }
     )
 
@@ -67,7 +74,7 @@ def _validate(user_input: dict[str, Any]) -> dict[str, str]:
 class MagmariumConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the initial setup."""
 
-    VERSION = 2
+    VERSION = 3
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         await self.async_set_unique_id(DOMAIN)

@@ -3,31 +3,35 @@
 from __future__ import annotations
 
 DOMAIN = "magmarium"
-VERSION = "0.1.6"
+VERSION = "0.2.0b1"
 
 CONF_SOURCES = "sources"
 CONF_WATCHED = "watched_volcanoes"
 
 CONF_PLACES = "places"
 CONF_RADIUS = "ash_radius_km"
+CONF_FIRMS_KEY = "firms_map_key"
 
 SOURCE_MAGMA = "magma"
 SOURCE_GVP_WEEKLY = "gvp_weekly"
 SOURCE_OFFICIAL = "official"
 SOURCE_SIGMET = "sigmet"
 SOURCE_QUAKES = "quakes"
-SOURCES = [SOURCE_MAGMA, SOURCE_GVP_WEEKLY, SOURCE_OFFICIAL, SOURCE_SIGMET, SOURCE_QUAKES]
+SOURCE_TSUNAMI = "tsunami"
+SOURCES = [SOURCE_MAGMA, SOURCE_GVP_WEEKLY, SOURCE_OFFICIAL, SOURCE_SIGMET, SOURCE_QUAKES, SOURCE_TSUNAMI]
 SOURCE_LABELS = {
     SOURCE_MAGMA: "MAGMA Indonesia (PVMBG)",
     SOURCE_GVP_WEEKLY: "Smithsonian / USGS Weekly Volcanic Activity Report",
     SOURCE_OFFICIAL: "Official alert levels: USGS (US), Icelandic Met Office, JMA (Japan)",
     SOURCE_SIGMET: "Volcanic ash SIGMETs (official ash areas for aviation)",
     SOURCE_QUAKES: "USGS earthquakes",
+    SOURCE_TSUNAMI: "Tsunami warnings: NOAA (PTWC, NTWC) and BMKG InaTEWS",
 }
 DEFAULT_SOURCES = list(SOURCES)
 DEFAULT_WATCHED = ""
 DEFAULT_PLACES = ["zone.home"]
 DEFAULT_RADIUS = 150
+DEFAULT_FIRMS_KEY = ""
 
 # MAGMA Indonesia (Center for Volcanology and Geological Hazard Mitigation, PVMBG)
 MAGMA_VONA_URL = "https://magma.esdm.go.id/v1/vona"
@@ -63,6 +67,10 @@ SIGMET_MINUTES = 15
 QUAKE_MINUTES = 15
 WIKI_DAYS = 30
 CAMS_MINUTES = 6 * 60
+TSUNAMI_MINUTES = 5
+THERMAL_MINUTES = 3 * 60
+# satellite hotspots older than this are not shown
+THERMAL_MAX_HOURS = 48
 HISTORY_DAYS = 90
 
 # a VONA ash cloud is shown as a live plume for this long, fading out

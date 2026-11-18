@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import slugify
 
-from .const import CONF_WATCHED, DEFAULT_WATCHED, DOMAIN, LEVEL_KEYS
+from .const import CONF_FIRMS_KEY, CONF_WATCHED, DEFAULT_WATCHED, DOMAIN, LEVEL_KEYS
 from .coordinator import MagmariumCoordinator
 from .entity import MagmariumEntity
 from .extra import wiki_url
@@ -59,7 +59,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         StatusSensor(coordinator, entry),
         SigmetSensor(coordinator, entry),
         QuakeSensor(coordinator, entry),
+        TsunamiSensor(coordinator, entry),
     ]
+    if (options.get(CONF_FIRMS_KEY) or "").strip():
+        entities.append(ThermalSensor(coordinator, entry))
     for name in parse_watched(options.get(CONF_WATCHED, DEFAULT_WATCHED)):
         entities.append(VolcanoSensor(coordinator, entry, name))
     async_add_entities(entities)
@@ -118,7 +121,12 @@ class EruptingSensor(MagmariumEntity, SensorEntity):
         return {
             "live": [v["name"] for v in vols if (v.get("eruption") or {}).get("source") == "vona"],
             "volcanoes": [
-                {**_short(v), "eruption_time": (v.get("eruption") or {}).get("time"), "source": (v.get("eruption") or {}).get("source")}
+                {
+                    **_short(v),
+                    "eruption_time": (v.get("eruption") or {}).get("time"),
+                    "source": (v.get("eruption") or {}).get("source"),
+                    "distance_km": _home_km(self.hass, v),
+                }
                 for v in vols[:MAX_LIST]
             ],
         }
@@ -194,6 +202,98 @@ class SigmetSensor(MagmariumEntity, SensorEntity):
                     "speed_kmh": s.get("speed_kmh"),
                 }
                 for s in ((self.coordinator.data or {}).get("sigmets") or [])[:MAX_LIST]
+            ]
+        }
+
+
+def _home_km(hass: HomeAssistant, vol: dict[str, Any]) -> int | None:
+    lat, lon = hass.config.latitude, hass.config.longitude
+    if lat is None or lon is None or vol.get("lat") is None:
+        return None
+    return round(haversine_km(lat, lon, vol["lat"], vol["lon"]))
+
+
+TSUNAMI_KEYS = {4: "warning", 3: "watch", 2: "advisory", 1: "information"}
+
+
+class TsunamiSensor(MagmariumEntity, SensorEntity):
+    """Tsunami bulletins in force (NOAA PTWC / NTWC, BMKG InaTEWS); the state counts warnings, watches and advisories."""
+
+    _attr_translation_key = "tsunami"
+    _attr_icon = "mdi:waves-arrow-up"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "alerts"
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "tsunami")
+
+    def _events(self) -> list[dict[str, Any]]:
+        return (self.coordinator.data or {}).get("tsunami") or []
+
+    @property
+    def native_value(self) -> int:
+        return len([e for e in self._events() if e["level"] >= 2])
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        events = self._events()
+        top = max((e["level"] for e in events), default=0)
+        near = [e["home_km"] for e in events if e["level"] >= 2 and e.get("home_km") is not None]
+        return {
+            "highest": TSUNAMI_KEYS.get(top, "none"),
+            "nearest_km": min(near) if near else None,
+            "events": [
+                {
+                    "level": TSUNAMI_KEYS.get(e["level"]),
+                    "category": e.get("category"),
+                    "region": e.get("region"),
+                    "magnitude": e.get("mag"),
+                    "time": e.get("time"),
+                    "distance_km": e.get("home_km"),
+                    "latitude": e.get("lat"),
+                    "longitude": e.get("lon"),
+                    "sources": e.get("sources"),
+                    "bulletin": e.get("bulletin"),
+                    "url": e.get("url"),
+                }
+                for e in events[:MAX_LIST]
+            ],
+        }
+
+
+class ThermalSensor(MagmariumEntity, SensorEntity):
+    """Volcanoes with satellite hotspots at the summit in the last 48 h (NASA FIRMS, VIIRS)."""
+
+    _attr_translation_key = "thermal"
+    _attr_icon = "mdi:satellite-variant"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "volcanoes"
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "thermal")
+
+    def _list(self) -> list[dict[str, Any]]:
+        vols = [v for v in (self.coordinator.data or {}).get("volcanoes", []) if v.get("thermal")]
+        return sorted(vols, key=lambda v: -v["thermal"]["frp_mw"])
+
+    @property
+    def native_value(self) -> int:
+        return len(self._list())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "volcanoes": [
+                {
+                    "name": v["name"],
+                    "country": v["country"],
+                    "hotspots": v["thermal"]["count"],
+                    "radiative_power_mw": v["thermal"]["frp_mw"],
+                    "time": v["thermal"]["time"],
+                    "satellite": v["thermal"]["source"],
+                    "distance_km": _home_km(self.hass, v),
+                }
+                for v in self._list()[:MAX_LIST]
             ]
         }
 
@@ -397,6 +497,9 @@ class VolcanoSensor(MagmariumEntity, SensorEntity):
             "wikipedia": wiki_url(vol.get("wiki")),
             "camera_image": next((c["img"] for c in vol.get("cams") or [] if c.get("img")), None),
             "cameras": [c["page"] for c in vol.get("cams") or []],
+            "thermal_hotspots": (vol.get("thermal") or {}).get("count", 0),
+            "thermal_power_mw": (vol.get("thermal") or {}).get("frp_mw"),
+            "thermal_time": (vol.get("thermal") or {}).get("time"),
             "elevation_m": vol.get("elevation"),
             "latitude": vol["lat"],
             "longitude": vol["lon"],
