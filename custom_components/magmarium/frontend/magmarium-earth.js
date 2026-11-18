@@ -118,9 +118,10 @@ export async function earthFromBlobs(dayBlob, nightBlob) {
 /**
  * Render the globe into `canvas` (width x height pixels).
  * G: view frame, sunE: sun direction, R: globe radius in pixels.
+ * daylight: light the whole visible side evenly instead of the real day and night.
  * Pixels outside the disk stay transparent.
  */
-export function renderEarth(canvas, earth, G, sunE, width, height, R) {
+export function renderEarth(canvas, earth, G, sunE, width, height, R, daylight = false) {
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
     canvas.height = height;
@@ -158,8 +159,9 @@ export function renderEarth(canvas, earth, G, sunE, width, height, R) {
       const n1 = x * E[1] + y * N[1] + z * V[1];
       const n2 = x * E[2] + y * N[2] + z * V[2];
       const dot = n0 * sunE[0] + n1 * sunE[1] + n2 * sunE[2];
-      const dayF = smooth(-0.12, 0.08, dot);
-      const light = 0.35 + 0.75 * Math.min(1, Math.max(0, dot * 1.3 + 0.12));
+      // daylight: everything lit, a soft shade towards the rim keeps the globe round
+      const dayF = daylight ? 1 : smooth(-0.12, 0.08, dot);
+      const light = daylight ? 0.72 + 0.4 * z : 0.35 + 0.75 * Math.min(1, Math.max(0, dot * 1.3 + 0.12));
       const k = dayF * light;
       let R0, G0, B0, Rn = 0, Gn = 0, Bn = 0;
       if (has) {

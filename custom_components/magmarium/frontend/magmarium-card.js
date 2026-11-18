@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -64,6 +64,8 @@ const ICONS = {
   home: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
   globe:
     "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm6.93 6h-2.95a15.65 15.65 0 0 0-1.38-3.56A8.03 8.03 0 0 1 18.93 8zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14A8.2 8.2 0 0 1 4 12c0-.69.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2s.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56A7.99 7.99 0 0 1 5.08 16zm2.95-8H5.08a7.99 7.99 0 0 1 4.33-3.56A15.65 15.65 0 0 0 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2s.07-1.35.16-2h4.68c.09.65.16 1.32.16 2s-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2s-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z",
+  sun: "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM2 13h2a1 1 0 0 0 0-2H2a1 1 0 0 0 0 2zm18 0h2a1 1 0 0 0 0-2h-2a1 1 0 0 0 0 2zM11 2v2a1 1 0 0 0 2 0V2a1 1 0 0 0-2 0zm0 18v2a1 1 0 0 0 2 0v-2a1 1 0 0 0-2 0zM5.99 4.58a1 1 0 0 0-1.41 1.41l1.06 1.06a1 1 0 0 0 1.41-1.41L5.99 4.58zm12.37 12.37a1 1 0 0 0-1.41 1.41l1.06 1.06a1 1 0 0 0 1.41-1.41l-1.06-1.06zm1.06-10.96a1 1 0 0 0-1.41-1.41l-1.06 1.06a1 1 0 0 0 1.41 1.41l1.06-1.06zM7.05 18.36a1 1 0 0 0-1.41-1.41l-1.06 1.06a1 1 0 0 0 1.41 1.41l1.06-1.06z",
+  night: "M12.3 22A10.3 10.3 0 0 1 9.4 1.8a1 1 0 0 1 1.2 1.3 8.3 8.3 0 0 0 10.3 10.3 1 1 0 0 1 1.3 1.2A10.3 10.3 0 0 1 12.3 22z",
   rotate: "M12 6v3l4-4-4-4v3a8 8 0 0 0-6.76 12.26l1.46-1.46A6 6 0 0 1 12 6zm6.76 1.74-1.46 1.46A6 6 0 0 1 12 18v-3l-4 4 4 4v-3a8 8 0 0 0 6.76-12.26z",
   full: "M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z",
   unfull: "M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z",
@@ -275,6 +277,7 @@ class MagmariumCard extends HTMLElement {
       center: "home",
       regions: true,
       rotate: false,
+      daylight: true,
       show_all: true,
       weekly_ash: true,
       wind_tracks: true,
@@ -336,6 +339,7 @@ class MagmariumCard extends HTMLElement {
             <button class="zout" title="Zoom out">${svg(ICONS.minus)}</button>
             <button class="home" title="Back to start view">${svg(ICONS.home)}</button>
             <button class="world" title="Whole globe">${svg(ICONS.globe)}</button>
+            <button class="light" title="Daylight or real day and night">${svg(ICONS.sun)}</button>
             <button class="rot" title="Rotate">${svg(ICONS.rotate)}</button>
             <button class="hist" title="Replay the last 90 days">${svg(ICONS.history)}</button>
             <button class="full" title="Fullscreen">${svg(ICONS.full)}</button>
@@ -368,6 +372,7 @@ class MagmariumCard extends HTMLElement {
     this._filter = "all";
     this._showAll = this._config.show_all !== false;
     this._rotate = !!this._config.rotate;
+    this._daylight = this._storedDaylight();
     this._plumes = new Map();
     this._ejecta = new Map();
     this._volcanoes = [];
@@ -391,6 +396,18 @@ class MagmariumCard extends HTMLElement {
       this._flyTo(lat, lon, zoom, null, region);
     });
     $(".world").addEventListener("click", () => this._flyTo(this._view.lat, this._view.lon, 1.0));
+    this._lightBtn = $(".light");
+    this._showLight();
+    this._lightBtn.addEventListener("click", () => {
+      this._daylight = !this._daylight;
+      try {
+        localStorage.setItem("magmarium-daylight", this._daylight ? "1" : "0");
+      } catch (e) {
+        /* storage not available: the choice lasts for this view */
+      }
+      this._showLight();
+      this._earthDirty = true;
+    });
     this._rotBtn = $(".rot");
     this._rotBtn.classList.toggle("on", this._rotate);
     this._rotBtn.addEventListener("click", () => {
@@ -1433,6 +1450,28 @@ class MagmariumCard extends HTMLElement {
     this._drawFx();
   }
 
+  /** daylight mode: the last choice in this browser, otherwise the card option */
+  _storedDaylight() {
+    try {
+      const v = localStorage.getItem("magmarium-daylight");
+      if (v === "1" || v === "0") return v === "1";
+    } catch (e) {
+      /* storage not available */
+    }
+    return this._config.daylight !== false;
+  }
+
+  _showLight() {
+    if (!this._lightBtn) return;
+    this._lightBtn.innerHTML = svg(this._daylight ? ICONS.sun : ICONS.night);
+    this._lightBtn.title = this._daylight ? "Daylight (switch to real day and night)" : "Real day and night (switch to daylight)";
+  }
+
+  /** how dark a point is: 0 in daylight mode, otherwise from the real sun */
+  _nightAt(p, sun) {
+    return this._daylight ? 0 : smooth(0.08, -0.14, dot(p, sun));
+  }
+
   _renderEarth(quality) {
     if (!this._w) return;
     let scale = this._dpr * quality;
@@ -1441,7 +1480,7 @@ class MagmariumCard extends HTMLElement {
     const W = Math.max(1, Math.round(this._w * scale));
     const H = Math.max(1, Math.round(this._h * scale));
     const R = this._R() * (W / this._w);
-    renderEarth(this._cEarth, this._earth, this._frame(), this._sun || sunDirection(Date.now()), W, H, R);
+    renderEarth(this._cEarth, this._earth, this._frame(), this._sun || sunDirection(Date.now()), W, H, R, this._daylight);
   }
 
   _drawTrack(ctx, w, G, R, strong, t) {
@@ -1661,7 +1700,7 @@ class MagmariumCard extends HTMLElement {
     for (const { v, pr } of items) {
       const s = sizeFor(v);
       const alpha = smooth(0.02, 0.18, pr.z);
-      const night = smooth(0.08, -0.14, dot(v.p, sun));
+      const night = this._nightAt(v.p, sun);
       if (v.level >= 4 || (v.level >= 3 && v.erupt > 0.5)) drawPulse(ctx, pr.x, pr.y, s, v.level, t + (v.lat % 1), alpha);
       drawVolcano(ctx, pr.x, pr.y, s, {
         level: v.level,
@@ -1678,7 +1717,7 @@ class MagmariumCard extends HTMLElement {
     for (const { v, pr } of items) {
       const s = sizeFor(v);
       const alpha = smooth(0.02, 0.18, pr.z);
-      const night = smooth(0.08, -0.14, dot(v.p, sun));
+      const night = this._nightAt(v.p, sun);
       const craterY = pr.y - s * 1.45;
       const ej = ejectaMap.get(v.id);
       if (ej) ej.draw(ctx, pr.x, craterY, s, night, alpha);
@@ -1785,6 +1824,7 @@ const EDITOR_SCHEMA = [
       { name: "labels", selector: { boolean: {} } },
       { name: "show_all", selector: { boolean: {} } },
       { name: "rotate", selector: { boolean: {} } },
+      { name: "daylight", selector: { boolean: {} } },
       { name: "weekly_ash", selector: { boolean: {} } },
       { name: "wind_tracks", selector: { boolean: {} } },
       { name: "ash_areas", selector: { boolean: {} } },
@@ -1803,6 +1843,7 @@ const EDITOR_LABELS = {
   labels: "Volcano names",
   show_all: "All known volcanoes",
   rotate: "Slow rotation",
+  daylight: "Daylight (whole globe lit)",
   weekly_ash: "Ash from the weekly report",
   wind_tracks: "Ash drift tracks (wind)",
   ash_areas: "Official ash areas (SIGMET)",
@@ -1842,6 +1883,7 @@ class MagmariumCardEditor extends HTMLElement {
       labels: true,
       show_all: true,
       rotate: false,
+      daylight: true,
       weekly_ash: true,
       wind_tracks: true,
       ash_areas: true,
