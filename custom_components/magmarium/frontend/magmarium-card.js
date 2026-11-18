@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.4";
+const VERSION = "0.1.5";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -2021,9 +2021,10 @@ const VC_STYLE = `
   .row.det .n { white-space: normal; }
   .row .d { grid-column: 2 / 3; min-width: 0; }
   .row .d .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 2px; }
-  .row .d .chip { font-size: 10.5px; padding: 2px 8px; border-radius: 10px; background: rgba(255,255,255,.08); white-space: nowrap; }
+  .row .d .chip { font-size: 10.5px; padding: 2px 8px; border-radius: 10px; background: rgba(255,255,255,.08); max-width: 100%; box-sizing: border-box; }
   .row .d .chip.hot { background: rgba(255,90,31,.22); color: #ffb48a; }
   .row .d .nt { margin-top: 4px; font-size: 11.5px; line-height: 1.4; opacity: .9; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .row .d .nt.full { display: block; -webkit-line-clamp: unset; overflow: visible; }
   .msg { opacity: .75; padding: 12px 14px; }
 `;
 
@@ -2197,18 +2198,70 @@ class MagmariumVolcanoCard extends HTMLElement {
     if (this._config.navigation_path) this._body.querySelectorAll(".row").forEach((r) => r.addEventListener("click", () => this._navigate()));
   }
 
+  /** time zone of Home Assistant, e.g. "Asia/Bangkok" */
+  _tz() {
+    return (this._hass && this._hass.config && this._hass.config.time_zone) || undefined;
+  }
+
+  /** "18 Nov, 12:09" in the time zone of Home Assistant */
+  _localTime(iso) {
+    const d = new Date(iso);
+    if (!iso || Number.isNaN(d.getTime())) return "";
+    try {
+      return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: this._tz() });
+    } catch (_err) {
+      return d.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+    }
+  }
+
+  /** "Eruption at 05:09 UTC (12:09 local)" -> "Eruption at 12:09 Bangkok time" */
+  _localizeNotice(text, iso) {
+    const tz = this._tz();
+    const issued = new Date(iso);
+    if (!tz || Number.isNaN(issued.getTime())) return text;
+    const city = tz.split("/").pop().replace(/_/g, " ");
+    return text.replace(/\b([01]\d|2[0-3]):([0-5]\d)\s*UTC(?:\s*\(\s*[0-2]\d:[0-5]\d\s*local\s*\))?/g, (m, hh, mm) => {
+      const d = new Date(issued);
+      d.setUTCHours(Number(hh), Number(mm), 0, 0);
+      // the notice can be issued shortly after midnight for an eruption the day before
+      if (d.getTime() - issued.getTime() > 3 * 3600 * 1000) d.setUTCDate(d.getUTCDate() - 1);
+      try {
+        return `${d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz })} ${city} time`;
+      } catch (_err) {
+        return m;
+      }
+    });
+  }
+
   /** list row in detail mode: eruption, ash cloud, SIGMETs and the latest report */
   _rowDetails(v, badge) {
     const chips = [badge];
     if (v.color && !(v.notice && v.notice.kind === "vona")) chips.push(`<span class="badge soft">VONA ${esc(v.color)}</span>`);
-    if (this._show("eruption") && v.eruption) {
-      const er = v.eruption;
-      chips.push(`<span class="chip hot">🌋 ${er.source === "vona" ? `Eruption ${esc(rel(er.time))}` : "Eruptive activity"}</span>`);
+    const n = v.notice && v.notice.kind === "vona" ? v.notice : null;
+    const ashText = (a) => {
+      const parts = [];
+      if (a.top_m != null) parts.push(`${fmtInt(a.top_m)} m a.s.l.`);
+      if (a.above_summit_m != null) parts.push(`${fmtInt(a.above_summit_m)} m above summit`);
+      return `☁️ Ash cloud${parts.length ? ` ${parts.join(" · ")}` : ""}${a.toward_deg != null ? ` → ${compass(a.toward_deg)}` : ""}`;
+    };
+    if (this._show("eruption")) {
+      if (v.eruption) {
+        const er = v.eruption;
+        chips.push(`<span class="chip hot">🌋 ${er.source === "vona" ? `Eruption ${esc(rel(er.time))}` : "Eruptive activity"}</span>`);
+      } else if (n && n.eruption) {
+        // the newest notice reported an eruption, but it is older than the live window
+        chips.push(`<span class="chip">🌋 Last eruption ${esc(rel(n.time))}</span>`);
+      }
     }
-    if (this._show("ash") && v.ash) {
-      const a = v.ash;
-      const h = a.above_summit_m != null ? `${fmtInt(a.above_summit_m)} m above summit` : a.top_m != null ? `up to ${fmtInt(a.top_m)} m` : "";
-      chips.push(`<span class="chip">☁️ Ash cloud${h ? ` ${h}` : ""}${a.toward_deg != null ? ` → ${compass(a.toward_deg)}` : ""}</span>`);
+    if (this._show("ash")) {
+      if (v.ash) {
+        chips.push(`<span class="chip hot">${esc(ashText(v.ash))}</span>`);
+      } else if (n && n.ash) {
+        // the last reported ash cloud, older than the live window
+        chips.push(`<span class="chip">${esc(ashText(n.ash))} · ${esc(rel(n.time))}</span>`);
+      } else if (n) {
+        chips.push(`<span class="chip">☁️ No ash cloud observed</span>`);
+      }
     }
     if (this._show("sigmets") && v.sigmets && v.sigmets.length) {
       chips.push(`<span class="chip">✈ Ash SIGMET${v.sigmets.length > 1 ? ` ×${v.sigmets.length}` : ""}</span>`);
@@ -2218,10 +2271,12 @@ class MagmariumVolcanoCard extends HTMLElement {
     }
     let text = "";
     if (this._show("notice")) {
-      const n = v.notice;
-      if (n && n.text) {
-        const head = n.kind === "vona" ? `VONA ${n.color || ""} · ${rel(n.time)}` : n.kind === "weekly" ? "Weekly report" : "Latest report";
-        text = `<div class="nt"><span class="muted">${esc(head)}</span> ${esc(tidyNotice(n.text))}</div>`;
+      const nt = v.notice;
+      if (nt && nt.kind === "vona" && nt.text) {
+        const head = `VONA ${nt.color || ""} · ${this._localTime(nt.time)} · ${rel(nt.time)}`;
+        text = `<div class="nt full"><span class="muted">${esc(head)}</span> ${esc(this._localizeNotice(tidyNotice(nt.text), nt.time))}</div>`;
+      } else if (nt && nt.text) {
+        text = `<div class="nt"><span class="muted">${esc(nt.kind === "weekly" ? `Weekly report ${nt.period || ""}` : "Latest report")}</span> ${esc(nt.text)}</div>`;
       } else if (v.weekly && v.weekly.text) {
         text = `<div class="nt"><span class="muted">Weekly report ${esc(v.weekly.period || "")}</span> ${esc(v.weekly.text)}</div>`;
       }
