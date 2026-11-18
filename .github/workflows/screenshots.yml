@@ -42,6 +42,11 @@ jobs:
           curl -fsSL -o docs/demo/fires_noaa21.csv "$base/noaa-21-viirs-c2/csv/J2_VIIRS_C2_SouthEast_Asia_24h.csv" || true
           curl -fsSL -o docs/demo/fires_snpp.csv "$base/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_SouthEast_Asia_24h.csv" || true
           python docs/demo/fires.py || true
+      - name: Download the earthquakes of the week (public USGS feeds)
+        run: |
+          curl -fsSL -o docs/demo/quakes_week.geojson "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson" || true
+          curl -fsSL -o docs/demo/quakes_day.geojson "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson" || true
+          python docs/demo/quakes.py || true
       - name: Render
         run: |
           python -m http.server 8765 >/dev/null 2>&1 &
