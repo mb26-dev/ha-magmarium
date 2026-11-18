@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "magmarium"
-VERSION = "0.2.0b4"
+VERSION = "0.2.0b5"
 
 CONF_SOURCES = "sources"
 CONF_WATCHED = "watched_volcanoes"
@@ -75,6 +75,8 @@ THERMAL_MINUTES = 3 * 60
 # satellite hotspots older than this are not shown
 THERMAL_MAX_HOURS = 48
 FIRE_MINUTES = 60
+# earthquakes counted by the "Earthquakes near home" sensor
+QUAKE_HOME_KM = 2000
 HISTORY_DAYS = 90
 
 # a VONA ash cloud is shown as a live plume for this long, fading out

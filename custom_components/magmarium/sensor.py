@@ -20,11 +20,12 @@ from .const import (
     DEFAULT_WATCHED,
     DOMAIN,
     LEVEL_KEYS,
+    QUAKE_HOME_KM,
 )
 from .coordinator import MagmariumCoordinator
 from .entity import MagmariumEntity
 from .extra import wiki_url
-from .hazards import compass, fire_summary
+from .hazards import bearing_deg, compass, fire_summary
 from .model import nearest
 from .parsing import haversine_km
 
@@ -69,6 +70,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         SigmetSensor(coordinator, entry),
         QuakeSensor(coordinator, entry),
         TsunamiSensor(coordinator, entry),
+        HomeQuakeSensor(coordinator, entry),
     ]
     if (options.get(CONF_FIRMS_KEY) or "").strip():
         entities.append(ThermalSensor(coordinator, entry))
@@ -367,6 +369,62 @@ class WildfireSensor(MagmariumEntity, SensorEntity):
                 }
                 for c in recent[:FIRE_LIST]
             ],
+        }
+
+
+class HomeQuakeSensor(MagmariumEntity, SensorEntity):
+    """Earthquakes within QUAKE_HOME_KM of home in the last 7 days (USGS); attributes for the last 24 hours."""
+
+    _attr_translation_key = "quakes_near_home"
+    _attr_icon = "mdi:home-alert-outline"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "quakes"
+
+    def __init__(self, coordinator: MagmariumCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "quakes_near_home")
+
+    def _list(self) -> list[dict[str, Any]]:
+        lat, lon = self.hass.config.latitude, self.hass.config.longitude
+        if lat is None or lon is None:
+            return []
+        out = []
+        for q in (self.coordinator.data or {}).get("quakes") or []:
+            km = haversine_km(lat, lon, q["lat"], q["lon"])
+            if km <= QUAKE_HOME_KM:
+                out.append({**q, "km": km, "direction": compass(bearing_deg(lat, lon, q["lat"], q["lon"]))})
+        return sorted(out, key=lambda q: q["time"], reverse=True)
+
+    @property
+    def native_value(self) -> int:
+        return len(self._list())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        quakes = self._list()
+        since = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        day = [q for q in quakes if q["time"] >= since]
+
+        def short(q: dict[str, Any] | None) -> dict[str, Any] | None:
+            if not q:
+                return None
+            return {
+                "magnitude": q["mag"],
+                "depth_km": q["depth_km"],
+                "distance_km": round(q["km"]),
+                "direction": q["direction"],
+                "place": q["place"],
+                "time": q["time"],
+                "url": q["url"],
+            }
+
+        return {
+            "radius_km": QUAKE_HOME_KM,
+            "last_24h": len(day),
+            "strongest_24h": short(max(day, key=lambda q: q["mag"]) if day else None),
+            "nearest_24h": short(min(day, key=lambda q: q["km"]) if day else None),
+            "strongest_7d": short(max(quakes, key=lambda q: q["mag"]) if quakes else None),
+            "nearest_7d": short(min(quakes, key=lambda q: q["km"]) if quakes else None),
+            "quakes": [short(q) for q in quakes[:15]],
         }
 
 
