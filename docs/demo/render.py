@@ -172,8 +172,10 @@ async def main() -> None:
         # 7 wildfires of the last 24 hours on the globe, where they burn the most (real NASA FIRMS data)
         focus = await page.evaluate("() => window.__fireFocus")
         if focus:
+            # leave the replay of step 6, it shows the past without fires
+            await page.evaluate("async () => { const c = window.__card; if (c._replay) await c._toggleReplay(); }")
             await light(page, True)
-            await fly(page, focus["lat"], focus["lon"], 5.2)
+            await fly(page, focus["lat"], focus["lon"], 6.0)
             await shot(page, "wildfires")
 
         # 8 the wildfire card with the same fires: relief map with places and list, satellite image of the region

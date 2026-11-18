@@ -84,11 +84,14 @@ def main() -> None:
 
     ranked = sorted(PLACES, key=lambda p: -power(p, 150))
     focus = ranked[0]
-    near = sorted(PLACES, key=lambda p: dist((focus[1], focus[2]), (p[1], p[2])))
-    places = [p for p in near[1:] if dist((focus[1], focus[2]), (p[1], p[2])) <= 450][:4]
+    # like a real installation: only the fires within 1500 km of this home
+    clusters = [c for c in clusters if dist((focus[1], focus[2]), (c["lat"], c["lon"])) <= 1500]
+    # tiles for the places around it with the most fires
+    around = [p for p in ranked[1:] if dist((focus[1], focus[2]), (p[1], p[2])) <= 900]
+    places = sorted(around, key=lambda p: -power(p, 100))[:4]
     out = {
         "focus": {"name": focus[0], "lat": focus[1], "lon": focus[2]},
-        "places": [{"name": p[0], "lat": p[1], "lon": p[2], "radius_km": 60} for p in places],
+        "places": [{"name": p[0], "lat": p[1], "lon": p[2], "radius_km": 100} for p in places],
         "fires_meta": {
             "updated": moved((now - timedelta(minutes=20)).isoformat()),
             "hotspots": len(points),
