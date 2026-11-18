@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 - 2026-11-18
+
+- Volcano list: new option `sort: distance` shows the nearest volcanoes with a raised alert level, an eruption or ash first (or sorts your own `volcanoes` by distance); the distance is measured from your Home Assistant home location
+- Volcano list: new option `details: true` adds to every row the eruption time, the ash cloud with height and drift, ash SIGMETs, earthquakes and the latest VONA or report text
+- The list rows also show the VONA aviation colour code
+
 ## 0.1.3 - 2026-11-18
 
 - New compact card `custom:magmarium-volcano-card` for the home dashboard: one volcano with the animated cone, ash plume, ejecta and a day or night sky, alert level, eruption, ash cloud, wind, earthquakes, SIGMETs, live camera and the latest report; or the most active volcanoes as a list with small animated cones; everything can be switched on and off in the visual editor

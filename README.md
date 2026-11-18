@@ -176,6 +176,17 @@ title: Most active
 
 Or your own volcanoes: `volcanoes: [gvp:263300, gvp:282080]` (the editor lists every volcano in the current reports).
 
+The nearest active volcanoes, with eruption, ash cloud, SIGMETs and the latest report in every row:
+
+```yaml
+type: custom:magmarium-volcano-card
+volcano: list
+sort: distance            # nearest first, from your home location (default: activity)
+details: true             # eruption, ash cloud, SIGMETs, quakes and report text per row
+count: 5
+title: Volcano Watch
+```
+
 ### Region buttons
 
 A second row of buttons flies the globe to a volcanic region. Each button shows how many volcanoes there are currently active, with a dot in the colour of the highest alert level; quiet regions are dimmed. Once a region is zoomed in, the quiet volcanoes are labelled too.
