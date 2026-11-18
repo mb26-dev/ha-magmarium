@@ -1,8 +1,8 @@
 /*
- * Magmarium hazard maps: regional map cards around home for wildfires (NASA FIRMS),
- * earthquakes (USGS, with tsunami bulletins) and lightning (Blitzortung entities).
+ * Magmarium hazard maps: regional map cards around home for wildfires (NASA FIRMS)
+ * and earthquakes (USGS, with tsunami bulletins).
  *
- * All three share one map engine: Web Mercator tiles loaded by the browser from
+ * Both share one map engine: Web Mercator tiles loaded by the browser from
  * NASA GIBS (Blue Marble shaded relief, or today's VIIRS true colour image with
  * coastlines), drag and pinch to move, buttons for saved views, named places,
  * an animated marker layer and a popup per item.
@@ -141,13 +141,6 @@ function quakeColor(m) {
 }
 const quakeLabel = (m) => (m >= 7 ? "Major" : m >= 6 ? "Strong" : m >= 5 ? "Moderate" : m >= 4 ? "Light" : "Minor");
 
-/** lightning colour by age in minutes */
-function strikeColor(min) {
-  if (min < 5) return [255, 255, 255];
-  if (min < 15) return [253, 224, 71];
-  if (min < 45) return [251, 146, 60];
-  return [220, 38, 38];
-}
 
 const TSUNAMI_COLORS = { 4: [239, 68, 68], 3: [249, 115, 22], 2: [250, 204, 21], 1: [96, 165, 250] };
 const TSUNAMI_NAMES = { 4: "Tsunami warning", 3: "Tsunami watch", 2: "Tsunami advisory", 1: "Tsunami information" };
@@ -228,7 +221,6 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
   const ICONS = {
     fire: icon("fire-marker.svg"),
     quake: icon("quake-marker.svg"),
-    lightning: icon("lightning-marker.svg"),
     tsunami: icon("tsunami-marker.svg"),
   };
   const IMAGES = {};
@@ -791,7 +783,7 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
       g.textAlign = "left";
     }
 
-    /** an animated icon standing on its foot (y = 115 of 128, quake and tsunami 96, lightning 98) on a ring in its colour */
+    /** an animated icon standing on its foot (y = 115 of 128, quake and tsunami 96) on a ring in its colour */
     drawIcon(g, name, x, y, size, col, t, seed, alpha = 1) {
       const ring = 1 + 0.08 * Math.sin(t * 4 + seed * 5);
       g.save();
@@ -809,7 +801,7 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
         const flick = name === "fire" ? 1 + 0.05 * Math.sin(t * 9 + seed * 13) + 0.03 * Math.sin(t * 17 + seed) : 1;
         const shake = name === "quake" ? Math.sin(t * 40 + seed) * 0.8 : 0;
         const h = size * flick;
-        const foot = { quake: 96, tsunami: 96, lightning: 98 }[name] || 115;
+        const foot = { quake: 96, tsunami: 96 }[name] || 115;
         g.drawImage(img, x - size / 2 + shake, y - h * (foot / 128), size, h);
       }
       g.restore();
@@ -1137,7 +1129,7 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
         // fresh quakes: seismic rings
         if (ageH <= 24) {
           for (let i = 0; i < 2; i++) {
-            const k = ((t * 0.6) + i / 2 + s.lon) % 1;
+            const k = (((t * 0.6 + i / 2 + s.lon) % 1) + 1) % 1;
             g.beginPath();
             g.ellipse(q.x, q.y, rad * (1 + k * 2.4), rad * (1 + k * 2.4), 0, 0, Math.PI * 2);
             g.strokeStyle = rgb(col, (1 - k) * 0.85);
@@ -1247,243 +1239,9 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
     }
   }
 
-  /* ============================================================ lightning */
-
-  class MagmariumLightningCard extends MagmariumMapCard {
-    static getStubConfig() {
-      return { title: "Lightning Watch" };
-    }
-
-    get kind() { return "lightning"; }
-    get usesPayload() { return false; }
-    get focusZoom() { return 10; }
-    defaults() { return { title: "Lightning Watch", radius_km: 100, minutes: 120 }; }
-    defaultViews() {
-      const r = Number(this._config?.radius_km) || 100;
-      return [{ name: "Near", radius_km: Math.round(r * 0.3) }, { name: "Radar", radius_km: Math.round(r * 1.08) }, { name: "Region", radius_km: r * 3 }];
-    }
-    theme() {
-      return { "--mf-bg1": "#0d1330", "--mf-accent": "#60a5fa", "--mf-glow": "rgba(96,165,250,.55)", "--mf-link": "#93c5fd", "--mf-title": "#ffd700",
-        "--mf-hot": "rgba(253,224,71,.6)", "--mf-hotbg": "rgba(253,224,71,.1)" };
-    }
-    legend() {
-      return `<span><i style="background:#fff"></i>&lt;5 min</span><span><i style="background:#fde047"></i>15</span>
-        <span><i style="background:#fb923c"></i>45</span><span><i style="background:#dc2626"></i>older</span>`;
-    }
-
-    home() {
-      const c = this._config.center;
-      if (Array.isArray(c) && c.length === 2) return { lat: Number(c[0]), lon: Number(c[1]) };
-      const cfg = this._hass?.config;
-      return { lat: cfg?.latitude ?? 0, lon: cfg?.longitude ?? 0 };
-    }
-
-    _strikeStates(hass) {
-      const want = this._config.entities;
-      const out = [];
-      if (Array.isArray(want) && want.length) {
-        for (const id of want) if (hass.states[id]) out.push(hass.states[id]);
-        return out;
-      }
-      for (const id in hass.states) {
-        if (!id.startsWith("geo_location.")) continue;
-        const st = hass.states[id];
-        if (String(st.attributes.source || "").toLowerCase() === (this._config.source || "blitzortung")) out.push(st);
-      }
-      return out;
-    }
-
-    hassChanged(hass) {
-      const strikes = this._strikeStates(hass);
-      const sig = strikes.map((s) => s.entity_id).sort().join(",");
-      const sensors = ["distance_entity", "counter_entity"].map((k) => this._config[k] && hass.states[this._config[k]]);
-      const changed = sig !== this._sig || sensors.some((s, i) => s !== (this._sensorStates || [])[i]) || super.hassChanged(hass);
-      this._sig = sig;
-      this._sensorStates = sensors;
-      return changed;
-    }
-
-    prepare() {
-      const home = this.home();
-      const maxAge = (Number(this._config.minutes) || 120) * 60000;
-      const prev = new Set((this._items || []).map((s) => s.id));
-      this._items = this._strikeStates(this._hass)
-        .map((st) => {
-          const a = st.attributes;
-          const lat = Number(a.latitude);
-          const lon = Number(a.longitude);
-          const ms = Date.parse(a.publication_date || a.time || st.last_changed);
-          return { id: st.entity_id, lat, lon, ms, km: haversine(home.lat, home.lon, lat, lon), brg: bearing(home.lat, home.lon, lat, lon) };
-        })
-        .filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lon) && Date.now() - s.ms <= maxAge)
-        .sort((a, b) => b.ms - a.ms);
-      // a new strike lights up the map
-      const fresh = this._items.find((s) => !prev.has(s.id) && Date.now() - s.ms < 5 * 60000);
-      if (fresh && prev.size) this.flash(fresh.lat, fresh.lon);
-    }
-
-    paintItems(g, t) {
-      const home = this.home();
-      const hq = this.toPx(home.lat, home.lon);
-      const ppk = this.pxPerKm();
-      const r = Number(this._config.radius_km) || 100;
-      // radar: range rings and a slow sweep around home
-      const rings = [10, 25, 50, 100, 200].filter((k) => k <= r * 1.01);
-      g.save();
-      for (const k of rings) {
-        g.beginPath();
-        g.arc(hq.x, hq.y, k * ppk, 0, Math.PI * 2);
-        g.strokeStyle = k === rings[rings.length - 1] ? "rgba(96,165,250,.55)" : "rgba(96,165,250,.25)";
-        g.setLineDash(k === rings[rings.length - 1] ? [] : [4, 5]);
-        g.lineWidth = 1;
-        g.stroke();
-        if (k * ppk > 22) {
-          g.font = "600 9.5px system-ui, sans-serif";
-          g.fillStyle = "rgba(191,219,254,.75)";
-          g.fillText(`${k} km`, hq.x + 3, hq.y - k * ppk + 11);
-        }
-      }
-      g.setLineDash([]);
-      const R = r * ppk;
-      const a = (t * 0.9) % (Math.PI * 2);
-      if (typeof g.createConicGradient === "function") {
-        const cg = g.createConicGradient(a - 0.9, hq.x, hq.y);
-        cg.addColorStop(0, "rgba(96,165,250,0)");
-        cg.addColorStop(0.14, "rgba(96,165,250,.16)");
-        cg.addColorStop(0.145, "rgba(147,197,253,.5)");
-        cg.addColorStop(0.15, "rgba(96,165,250,0)");
-        cg.addColorStop(1, "rgba(96,165,250,0)");
-        g.fillStyle = cg;
-        g.beginPath();
-        g.arc(hq.x, hq.y, R, 0, Math.PI * 2);
-        g.fill();
-      }
-      g.restore();
-
-      const icons = [];
-      // oldest first, the newest on top
-      for (const s of [...(this._items || [])].reverse()) {
-        const q = this.toPx(s.lat, s.lon);
-        if (!this.onScreen(q)) continue;
-        const min = (Date.now() - s.ms) / 60000;
-        const col = strikeColor(min);
-        const fade = clamp(1 - min / ((Number(this._config.minutes) || 120) * 1.15), 0.25, 1);
-        if (min < 10) {
-          // shock wave of a fresh strike
-          const k = ((t * 0.8) + s.lat * 3) % 1;
-          g.beginPath();
-          g.arc(q.x, q.y, 4 + k * 22, 0, Math.PI * 2);
-          g.strokeStyle = `rgba(147,197,253,${(1 - k) * 0.85})`;
-          g.lineWidth = 1.6;
-          g.stroke();
-        }
-        const rad = min < 5 ? 9 : min < 15 ? 7 : 5;
-        const grd = g.createRadialGradient(q.x, q.y, 0, q.x, q.y, rad * 2);
-        grd.addColorStop(0, rgb(col, 0.95 * fade));
-        grd.addColorStop(0.4, rgb(min < 5 ? [147, 197, 253] : col, 0.45 * fade));
-        grd.addColorStop(1, rgb(col, 0));
-        g.fillStyle = grd;
-        g.beginPath();
-        g.arc(q.x, q.y, rad * 2, 0, Math.PI * 2);
-        g.fill();
-        // a small cross like a strike symbol
-        g.strokeStyle = rgb(col, fade);
-        g.lineWidth = 1.6;
-        g.beginPath();
-        g.moveTo(q.x - 3, q.y - 3);
-        g.lineTo(q.x + 3, q.y + 3);
-        g.moveTo(q.x + 3, q.y - 3);
-        g.lineTo(q.x - 3, q.y + 3);
-        g.stroke();
-        this._hits.push({ x: q.x, y: q.y, r: 12, item: s });
-        if (min < 30) icons.push({ s, q, min });
-      }
-      // the bolt for the newest strikes
-      const size = clamp(26 + this._view.zoom * 1.2, 30, 44);
-      icons.sort((x, y) => x.min - y.min);
-      for (const it of this.placeIcons(icons, 3, size)) {
-        const flick = it.min < 5 ? (Math.sin(t * 23 + it.s.lon * 7) > -0.3 ? 1 : 0.35) : 0.85;
-        this.drawIcon(g, "lightning", it.q.x, it.q.y, size, strikeColor(it.min), t, it.s.lat, flick);
-      }
-    }
-
-    popupHtml(s) {
-      const min = (Date.now() - s.ms) / 60000;
-      const near = this.nearPlace(s.lat, s.lon);
-      return `<b style="color:${hex(strikeColor(min))}">⚡ Lightning strike</b>
-        <div>${kmText(s.km)} km ${compass(s.brg)} of ${esc(this.homeName())}${near ? `<br>${Math.round(near.d)} km from ${esc(near.p.name)}` : ""}</div>
-        <div class="m">${esc(this.time(s.ms))} (${ago(s.ms)})</div>
-        <div class="m">Blitzortung.org community network</div>`;
-    }
-
-    _trend() {
-      // average distance of the last 15 minutes against the 15 to 45 minutes before
-      const now = Date.now();
-      const a = (this._items || []).filter((s) => now - s.ms <= 15 * 60000);
-      const b = (this._items || []).filter((s) => now - s.ms > 15 * 60000 && now - s.ms <= 45 * 60000);
-      if (a.length < 2 || b.length < 2) return null;
-      const avg = (l) => l.reduce((x, s) => x + s.km, 0) / l.length;
-      const d = avg(a) - avg(b);
-      if (d < -5) return { text: "Nearing", sub: `${Math.round(-d)} km closer`, color: "#f97316" };
-      if (d > 5) return { text: "Moving away", sub: `${Math.round(d)} km further`, color: "#7dd3c0" };
-      return { text: "Steady", sub: "same distance", color: "#fde047" };
-    }
-
-    renderText(top) {
-      const items = this._items || [];
-      this._rows = items;
-      const now = Date.now();
-      const hour = items.filter((s) => now - s.ms <= 3600000);
-      const ten = items.filter((s) => now - s.ms <= 600000);
-      const near = items.reduce((m, s) => (!m || s.km < m.km ? s : m), null);
-      const newest = items[0];
-      const r = Number(this._config.radius_km) || 100;
-      const dist = this._config.distance_entity && this._hass.states[this._config.distance_entity];
-      const col = !near ? "#7dd3c0" : near.km <= 10 ? "#ff3b3b" : near.km <= 25 ? "#f97316" : near.km <= 50 ? "#fde047" : "#93c5fd";
-      top.big.textContent = String(hour.length);
-      top.big.style.color = hour.length ? col : "#7dd3c0";
-      top.bigLabel.textContent = "strikes 1 h";
-      top.icon.classList.toggle("calm", !ten.length);
-      top.sub.style.color = col;
-      top.sub.textContent = newest
-        ? `Nearest ${kmText(near.km)} km ${compass(near.brg)} · last ${ago(newest.ms)}`
-        : `No lightning within ${r} km`;
-      const tr = this._trend();
-      top.hint.textContent = newest
-        ? `${tr ? `${tr.text === "Nearing" ? "Storm approaching" : tr.text === "Moving away" ? "Storm moving away" : "Storm steady"} · ` : ""}${items.length} strike${items.length === 1 ? "" : "s"} in ${Math.round((Number(this._config.minutes) || 120) / 60)} h`
-        : `Blitzortung.org live network · ${dist && Number.isFinite(Number(dist.state)) ? `last strike ${dist.state} km` : "all quiet"}`;
-
-      const tiles = [];
-      tiles.push(this.tile("Last 10 min", String(ten.length), ten.length ? "storm active" : "quiet", { color: ten.length ? "#fde047" : "#7dd3c0", hot: ten.length > 0 }));
-      tiles.push(this.tile("Last hour", String(hour.length), `within ${r} km`, { color: hour.length ? "#93c5fd" : "#7dd3c0" }));
-      tiles.push(this.tile("Nearest", near ? `${kmText(near.km)} km` : "–", near ? `${compass(near.brg)} · ${ago(near.ms)}` : "no strikes", { color: col, hot: !!near && near.km <= 25 }));
-      tiles.push(this.tile("Storm", tr ? tr.text : newest ? "Scattered" : "None", tr ? tr.sub : newest ? "too few strikes" : `radius ${r} km`, { color: tr ? tr.color : "#7dd3c0", hot: !!tr && tr.text === "Nearing" }));
-      for (const p of this._places || []) {
-        const inside = hour.filter((s) => haversine(p.lat, p.lon, s.lat, s.lon) <= p.r);
-        tiles.push(this.tile(p.name, inside.length ? `${inside.length} strike${inside.length === 1 ? "" : "s"}` : "Clear", inside.length ? "last hour" : `within ${p.r} km`,
-          { place: p, hot: inside.length > 0, color: inside.length ? "#fde047" : "#7dd3c0" }));
-      }
-      let html = `<div class="tiles">${tiles.join("")}</div>`;
-      const n = Number(this._config.list) || 0;
-      if (n > 0) {
-        html += items.length
-          ? `<div class="list">${items.slice(0, n).map((s, i) => {
-            const c = hex(strikeColor((now - s.ms) / 60000));
-            const pl = this.nearPlace(s.lat, s.lon);
-            return `<div class="row" data-i="${i}"><span class="dot" style="background:${c};box-shadow:0 0 8px ${c}"></span>
-              <span class="main"><b>${kmText(s.km)} km ${compass(s.brg)}</b>${pl ? ` · ${esc(pl.p.name)}` : ""}</span><span class="tm">${ago(s.ms)}</span></div>`;
-          }).join("")}</div>`
-          : `<div class="none">🌤 No lightning within ${r} km in the last ${Math.round((Number(this._config.minutes) || 120) / 60)} hours.</div>`;
-      }
-      html += `<div class="foot"><span>Strikes: <a href="https://www.blitzortung.org" target="_blank" rel="noopener">Blitzortung.org</a> via Home Assistant</span></div>`;
-      return html;
-    }
-  }
-
   const cards = [
     ["magmarium-fire-card", MagmariumFireCard, "Magmarium wildfires", "Wildfires around your home on a zoomable map with places, the nearest fires and their power (NASA FIRMS)."],
     ["magmarium-quake-card", MagmariumQuakeCard, "Magmarium earthquakes", "Earthquakes around your home with magnitude, depth and tsunami bulletins on a zoomable map (USGS, NOAA, BMKG)."],
-    ["magmarium-lightning-card", MagmariumLightningCard, "Magmarium lightning", "Live lightning strikes around your home on a radar map with storm trend (Blitzortung integration)."],
   ];
   for (const [tag, cls, name, description] of cards) {
     if (customElements.get(tag)) continue;
