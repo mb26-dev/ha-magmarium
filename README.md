@@ -18,7 +18,7 @@
 
 Active volcanoes on a living globe for Home Assistant. Magmarium shows **every volcano with a current report** on a 3D Earth: coloured by its official alert level, glowing while it erupts, and with **ash plumes that rise and drift exactly as the latest official notice describes**, only while an ash cloud is actually reported.
 
-It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, adds **official alert levels from the USGS, the Icelandic Met Office and the Japan Meteorological Agency**, the **official volcanic ash areas for aviation (SIGMETs)** worldwide, **earthquakes** from the USGS and the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account.
+It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, adds **official alert levels from the USGS, the Icelandic Met Office and the Japan Meteorological Agency**, the **official volcanic ash areas for aviation (SIGMETs)** worldwide, **earthquakes** from the USGS, **tsunami warnings** from NOAA and BMKG and the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account. Optionally, with a free NASA FIRMS key, **satellite hotspots** show glowing lava at the summits.
 
 ## Screenshots
 
@@ -58,6 +58,8 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 - **Region buttons:** one tap turns the globe to Indonesia, Japan, Iceland, the Andes and twelve more volcanic regions, each with its number of active volcanoes
 - **Official ash areas:** volcanic ash SIGMETs drawn as live polygons with height and validity, tap for the full text
 - **Earthquakes** of the last 7 days as rings, orange near a volcano, fresh ones pulse
+- **Tsunami warnings:** official bulletins of NOAA (PTWC, NTWC) and BMKG InaTEWS roll out as waves from the epicentre, in the colour of the alert (warning, watch, advisory, information), with a banner in the compact card
+- **Satellite hotspots** (optional, free NASA FIRMS key): VIIRS thermal anomalies at the summit glow on the ground, with radiative power in MW
 - **Replay:** one button plays the eruptions and ash clouds of the last 90 days (VONA, Indonesia) on the globe
 - **Wikipedia link** for every volcano, matched by its Smithsonian number through Wikidata
 - **Live cameras:** the newest image of the official observatory camera right in the info panel (USGS, GeoNet), links to the camera pages of the Japan Meteorological Agency and to the MAGMA Indonesia CCTV
@@ -79,6 +81,8 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 | `<volcano>` | alert level of a watched volcano: normal, advisory, watch, warning | official alert (e.g. *Level III (Siaga)*), aviation colour, eruption, ash cloud, notice, distance |
 | Ash SIGMETs | valid volcanic ash SIGMETs worldwide | volcano, flight information region, height, validity, movement |
 | Earthquakes near volcanoes | USGS earthquakes of the last 7 days within 30 km of a volcano | magnitude, depth, distance, volcano |
+| Tsunami alerts | tsunami warnings, watches and advisories in force | highest level, nearest distance from home, every bulletin with region, magnitude, sources and link |
+| Thermal anomalies (with FIRMS key) | volcanoes with satellite hotspots at the summit in the last 48 h | hotspots, radiative power (MW), satellite pass, distance |
 | Ash near `<place>` (binary) | on when ash comes within the radius of a place | nearest distance, volcano, kind (SIGMET, plume or drift track), hours until the drift track arrives, official |
 | Data sources (diagnostic) | ok, degraded or waiting | status of every feed, cache sizes, Earth imagery |
 
@@ -109,12 +113,13 @@ All settings are done in the UI and can be changed later under **Configure**:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| Data sources | all | MAGMA Indonesia: official alert levels and VONA notices for all Indonesian volcanoes. Weekly report: worldwide activity from the Smithsonian Global Volcanism Program and USGS. Official alert levels: USGS (US volcanoes), Icelandic Met Office, Japan Meteorological Agency. Ash SIGMETs: official volcanic ash areas for aviation. Earthquakes: USGS. |
+| Data sources | all | MAGMA Indonesia: official alert levels and VONA notices for all Indonesian volcanoes. Weekly report: worldwide activity from the Smithsonian Global Volcanism Program and USGS. Official alert levels: USGS (US volcanoes), Icelandic Met Office, Japan Meteorological Agency. Ash SIGMETs: official volcanic ash areas for aviation. Earthquakes: USGS. Tsunami warnings: NOAA PTWC / NTWC and BMKG InaTEWS. |
 | Volcanoes to watch | empty | Comma separated names, e.g. `Semeru, Merapi, Anak Krakatau, Lewotobi`. Each one gets its own sensor. |
 | Places to watch for ash | Home | Zones, for example your home and your airports. Each gets an "Ash near ..." sensor. |
 | Ash warning radius | 150 km | Distance around each place. |
+| NASA FIRMS map key | empty | Optional. A free key from [firms.modaps.eosdis.nasa.gov/api/map_key](https://firms.modaps.eosdis.nasa.gov/api/map_key/) switches on the satellite hotspots (VIIRS) at volcanoes with a raised alert level, an eruption or ash. Checked every 3 hours. |
 
-Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), official alert levels every hour, ash SIGMETs and earthquakes every 15 minutes, the volcano catalogue and the Wikipedia links once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
+Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), official alert levels every hour, ash SIGMETs and earthquakes every 15 minutes, tsunami bulletins every 5 minutes, satellite hotspots every 3 hours (with a FIRMS key), the volcano catalogue and the Wikipedia links once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
 
 ## The card
 
@@ -138,6 +143,8 @@ weekly_ash: true       # light ash plumes for ash reported in the weekly report
 wind_tracks: true      # dashed 6 hour ash drift tracks from forecast winds
 ash_areas: true        # official volcanic ash areas (SIGMETs)
 quakes: true           # earthquakes of the last 7 days
+tsunami: true          # tsunami warnings as rolling waves
+thermal: true          # satellite hotspots (needs a NASA FIRMS key in the integration)
 replay: true           # replay button for the last 90 days
 cams: true             # live camera images of the observatories
 labels: true
@@ -240,6 +247,19 @@ Pick a watched volcano and what should happen. The actions get the variables `vo
 
 Pick an "Ash near ..." sensor, for example of your home or your airport. Optionally only official ash areas count. The actions get `place`, `volcano`, `kind`, `distance_km`, `eta_hours` and `official`.
 
+**Eruption or tsunami near you**
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fmb26-dev%2Fha-magmarium%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fmagmarium%2Feruption_tsunami_near_you.yaml)
+
+Pick the "Erupting volcanoes" and the "Tsunami alerts" sensors, a radius for eruptions and one for tsunamis, and the lowest tsunami level. It runs when a volcano within your radius gets a new VONA eruption notice or when a new tsunami bulletin comes in near you. The actions get `title` and `message`, for example:
+
+```yaml
+- action: notify.notify
+  data:
+    title: "{{ title }}"
+    message: "{{ message }}"
+```
+
 ## How it reads the reports
 
 | Shown on the globe | Comes from |
@@ -247,6 +267,8 @@ Pick an "Ash near ..." sensor, for example of your home or your airport. Optiona
 | Colour of the ring | Indonesia: official MAGMA alert level (Level I Normal, II Waspada, III Siaga, IV Awas). US volcanoes: USGS alert level and aviation colour code. Iceland: aviation colour code of the Icelandic Met Office. Japan: JMA alert level (levels 4 and 5 both show as Warning). Elsewhere: the weekly report (new eruptive activity = Watch, unrest or ongoing activity = Advisory). |
 | Grey dashed area | a valid volcanic ash SIGMET: the official ash area for aviation. A volcano named in it gets an ash plume moving in the SIGMET direction. |
 | Rings | USGS earthquakes of the last 7 days; orange within 30 km of a volcano. Small volcanic quakes, for example in Indonesia, are often not in this catalogue. |
+| Coloured waves from a point | a tsunami bulletin in force (NOAA PTWC / NTWC, BMKG InaTEWS): red warning or threat, orange watch, yellow advisory, blue information statement. The waves only mark the event, they are not a forecast of the tsunami. |
+| Hot glow on the ground | satellite hotspots of the last 48 hours within 5 km of the summit (NASA FIRMS, VIIRS); brighter with more radiative power |
 | Glowing crater and lava | a VONA in the last 24 hours that reports an eruption, or eruptive activity in the current weekly report |
 | Ash plume | a VONA in the last 4 hours with an ash cloud: height above the summit, drift direction, ash colour and intensity are taken from the notice. Exercise notices (*VA EXERCISE*) are ignored. |
 | Light ash plume | ash plumes mentioned in the current weekly report |
@@ -270,6 +292,8 @@ A star on GitHub, a bug report or a screenshot of your dashboard helps just as m
 - Official alert levels: [USGS Volcano Hazards Program](https://volcanoes.usgs.gov) (HANS), [Icelandic Met Office](https://en.vedur.is), [Japan Meteorological Agency](https://www.jma.go.jp)
 - Volcanic ash SIGMETs: [AviationWeather.gov](https://aviationweather.gov) (NOAA Aviation Weather Center)
 - Earthquakes: [USGS Earthquake Hazards Program](https://earthquake.usgs.gov)
+- Tsunami warnings: [NOAA Tsunami Warning Centers](https://www.tsunami.gov) (PTWC, NTWC) and [BMKG InaTEWS](https://inatews.bmkg.go.id)
+- Satellite hotspots: [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) (VIIRS, LANCE / EOSDIS)
 - Wikipedia links: [Wikidata](https://www.wikidata.org) (CC0)
 - Volcano cameras: [USGS Volcano Hazards Program AshCam](https://avo-volcview.wr.usgs.gov/ashcam-gui/webcam.html), [GeoNet / GNS Science](https://www.geonet.org.nz/volcano/cameras), [Japan Meteorological Agency](https://www.data.jma.go.jp/vois/data/obs/volcam/volcam.php), [MAGMA Indonesia](https://magma.esdm.go.id/v1/gunung-api/cctv)
 - Winds aloft: [Open-Meteo](https://open-meteo.com) (CC BY 4.0)

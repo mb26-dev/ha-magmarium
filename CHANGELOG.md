@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0b1 - 2026-11-18
+
+- **Tsunami warnings:** official bulletins of NOAA (PTWC, NTWC) and BMKG InaTEWS, merged per event. On the globe they roll out as waves from the epicentre in the colour of the alert (warning / threat red, watch orange, advisory yellow, information blue), with a label and an info panel with the bulletin. Warnings stay 12 hours after the last bulletin, information statements 3 hours; cancellations remove them. New sensor "Tsunami alerts", new card option `tsunami`, a banner in the compact card (`tsunami: false` hides it). Switched on for existing installations
+- **Satellite hotspots (optional):** with a free NASA FIRMS map key (new setting), VIIRS thermal anomalies within 5 km of the summit of every volcano with a raised alert level, an eruption or ash are checked every 3 hours. They glow on the globe, show in the info panel, the compact card (tile and chip) and the volcano sensors, and get their own sensor "Thermal anomalies". New card option `thermal`
+- **New blueprint "Eruption or tsunami near you":** notifies on a new VONA eruption within your radius and on new tsunami bulletins near you from the level you choose
+- The "Erupting volcanoes" sensor lists the distance from home of every volcano
+
 ## 0.1.6 - 2026-11-18
 
 - Volcano list with `details: true`: long reports (weekly report) are shortened to 3 lines with a "Show more" / "Show less" link that opens the full text right in the card; tapping it never opens the globe
