@@ -46,6 +46,15 @@ async def prepare(page) -> None:
     await page.wait_for_timeout(600)
 
 
+async def light(page, daylight: bool) -> None:
+    """daylight: whole globe lit, otherwise the real day and night"""
+    await page.evaluate(
+        "(d) => { const c = window.__card; c._daylight = d; c._showLight(); c._earthDirty = true; }",
+        daylight,
+    )
+    await page.wait_for_timeout(400)
+
+
 async def fly(page, lat: float, lon: float, zoom: float, region: str | None = None) -> None:
     await page.evaluate(
         "([lat, lon, zoom, region]) => window.__card._flyTo(lat, lon, zoom, 900, region)",
@@ -116,6 +125,7 @@ async def main() -> None:
         await prepare(page)
 
         # 1 Indonesia: the Ring of Fire with every alert level
+        await light(page, True)
         await fly(page, -3.0, 117.0, 2.9, "indonesia")
         await shot(page, "indonesia")
 
@@ -124,6 +134,7 @@ async def main() -> None:
         await shot(page, "globe")
 
         # 3 Central and South America at night: official ash areas, earthquakes, glowing craters
+        await light(page, False)
         await fly(page, 5.0, -81.0, 3.3)
         await shot(page, "ash-areas")
 
@@ -134,6 +145,7 @@ async def main() -> None:
         await unselect(page)
 
         # 5 live camera of the observatory
+        await light(page, True)
         await fly(page, 19.4, -155.3, 7.0, "hawaii")
         if await select(page, "Kilauea", "KO"):
             await shot(page, "live-camera")
@@ -142,6 +154,7 @@ async def main() -> None:
         # 6 replay of the last 90 days at the moment with the most ash clouds
         t = best_replay_time(history)
         if t:
+            await light(page, False)
             await fly(page, -4.0, 121.0, 3.4, "indonesia")
             await page.evaluate(
                 """async (t) => {
