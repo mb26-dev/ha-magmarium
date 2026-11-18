@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.1.2";
+const VERSION = "0.1.3";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -1912,4 +1912,561 @@ if (!customElements.get("magmarium-card")) {
     documentationURL: "https://github.com/mb26-dev/ha-magmarium",
   });
   console.info(`%c MAGMARIUM %c ${VERSION} `, "background:#ff8a1f;color:#111;font-weight:700", "background:#222;color:#ffab4a");
+}
+
+// ====================================================================== compact volcano card
+
+/** data of the integration, shared by all volcano cards on a page */
+const VC_DATA = { at: 0, data: null, busy: null };
+
+async function loadVolcanoData(hass, force = false) {
+  if (!force && VC_DATA.data && Date.now() - VC_DATA.at < DATA_REFRESH_MS - 5000) return VC_DATA.data;
+  if (VC_DATA.busy) return VC_DATA.busy;
+  VC_DATA.busy = (async () => {
+    try {
+      const resp = await hass.fetchWithAuth("/api/magmarium/volcanoes");
+      if (resp.status === 503) throw new Error("loading");
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      VC_DATA.data = await resp.json();
+      VC_DATA.at = Date.now();
+      return VC_DATA.data;
+    } finally {
+      VC_DATA.busy = null;
+    }
+  })();
+  return VC_DATA.busy;
+}
+
+/** sun elevation in degrees at a place and time (simple solar position, good to about 1 degree) */
+function sunElevation(lat, lon, ms) {
+  const rad = Math.PI / 180;
+  const d = ms / 86400000 + 2440587.5 - 2451545.0;
+  const g = (357.529 + 0.98560028 * d) * rad;
+  const q = 280.459 + 0.98564736 * d;
+  const L = (q + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g)) * rad;
+  const e = (23.439 - 0.00000036 * d) * rad;
+  const ra = Math.atan2(Math.cos(e) * Math.sin(L), Math.cos(L));
+  const dec = Math.asin(Math.sin(e) * Math.sin(L));
+  const gmst = (18.697374558 + 24.06570982441908 * d) % 24;
+  const ha = (gmst * 15 + lon) * rad - ra;
+  return Math.asin(Math.sin(lat * rad) * Math.sin(dec) + Math.cos(lat * rad) * Math.cos(dec) * Math.cos(ha)) / rad;
+}
+
+/** eruption strength 0..1 the same way the globe computes it */
+function eruptStrength(v) {
+  const er = v.eruption;
+  if (er && er.source === "vona") return clamp(1 - ((er.age_min || 0) / (24 * 60)) * 0.6, 0.4, 1);
+  return er ? 0.45 : 0;
+}
+
+/** most active first: alert level, eruption, fresh VONA */
+function activityScore(v) {
+  const er = v.eruption;
+  const fresh = er && er.source === "vona" ? Math.max(0, 1 - (er.age_min || 0) / (24 * 60)) : 0;
+  return (v.level || 0) * 10 + (v.erupting ? 4 : 0) + (v.ash ? 2 : 0) + fresh * 3;
+}
+
+const VC_SHOW = ["scene", "eruption", "ash", "sigmets", "quakes", "wind", "camera", "notice", "links"];
+
+const VC_STYLE = `
+  :host { display: block; }
+  ha-card { display: block; overflow: hidden; border-radius: var(--ha-card-border-radius, 12px); color: #f3f1ee;
+    background: radial-gradient(120% 90% at 0% 0%, #2a1408 0%, #120a07 45%, #050304 100%);
+    font-family: var(--paper-font-body1_-_font-family, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); }
+  .scene { position: relative; height: 150px; overflow: hidden; }
+  .scene canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .scene .ov { position: absolute; left: 12px; right: 12px; top: 10px; pointer-events: none; text-shadow: 0 1px 4px rgba(0,0,0,.9); }
+  .scene.nav, .row.nav, .head.nav { cursor: pointer; }
+  .brand { display: flex; align-items: baseline; gap: 6px; font-size: 13px; font-weight: 650; letter-spacing: .4px; }
+  .brand b { font-weight: 650; }
+  .brand b span { color: #ffab4a; }
+  .brand .sub { margin-left: auto; font-size: 10.5px; font-weight: 400; letter-spacing: 0; opacity: .7; }
+  .wrap { padding: 10px 14px 12px; font-size: 12.5px; line-height: 1.45; }
+  .head { margin-bottom: 4px; }
+  .head h3 { margin: 0; font-size: 17px; font-weight: 650; line-height: 1.2; }
+  .head .where { opacity: .72; font-size: 11.5px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0 4px; }
+  .badge { font-size: 10.5px; font-weight: 650; letter-spacing: .4px; padding: 2px 8px; border-radius: 10px; color: #111; white-space: nowrap; }
+  .badge.soft { background: rgba(255,255,255,.1); color: #eee; font-weight: 500; letter-spacing: 0; }
+  .badge.hot { background: #ff5a1f; color: #fff; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; margin-top: 8px; }
+  .tile { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 6px 8px; min-width: 0; }
+  .tile .k { font-size: 10.5px; opacity: .65; text-transform: uppercase; letter-spacing: .5px; }
+  .tile .v { font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile .s { font-size: 11px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .line { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; }
+  .line .ic { flex: 0 0 18px; text-align: center; }
+  .line .tx { flex: 1 1 auto; min-width: 0; }
+  .muted { opacity: .65; font-size: 11px; }
+  .notice { margin-top: 8px; padding: 8px 10px; background: rgba(255,255,255,.05); border-radius: 8px; font-size: 12px; max-height: 96px; overflow-y: auto; }
+  .links { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; }
+  .links a { color: #ffb965; text-decoration: none; }
+  .cam { margin: 8px 0 4px; border-radius: 8px; overflow: hidden; position: relative; background: #000; }
+  .cam a { display: block; color: #fff; text-decoration: none; }
+  .cam img { display: block; width: 100%; height: auto; max-height: 200px; object-fit: cover; }
+  .cam .tag { position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 8px 5px; font-size: 10.5px;
+    background: linear-gradient(transparent, rgba(0,0,0,.8)); display: flex; justify-content: space-between; gap: 8px; }
+  .cam .live { color: #ff6b5a; font-weight: 700; letter-spacing: .4px; }
+  .list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .row { display: grid; grid-template-columns: 46px minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 2px 8px 2px 2px; border-radius: 10px; background: rgba(255,255,255,.04); }
+  .row canvas { width: 46px; height: 46px; display: block; }
+  .row .n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .n .muted { display: block; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .m { text-align: right; white-space: nowrap; }
+  .row .m .muted { display: block; }
+  .msg { opacity: .75; padding: 12px 14px; }
+`;
+
+class MagmariumVolcanoCard extends HTMLElement {
+  constructor() {
+    super();
+    this._root = this.attachShadow({ mode: "open" });
+    this._root.innerHTML = `<style>${VC_STYLE}</style><ha-card><div class="body"><div class="msg">Loading Magmarium...</div></div></ha-card>`;
+    this._body = this._root.querySelector(".body");
+    this._scenes = [];
+    this._plumes = new Map();
+    this._ejecta = new Map();
+    this._t = 0;
+    this._last = 0;
+  }
+
+  static getConfigElement() {
+    return document.createElement("magmarium-volcano-card-editor");
+  }
+
+  static getStubConfig() {
+    return { volcano: "auto" };
+  }
+
+  setConfig(config) {
+    if (!config) throw new Error("Invalid configuration");
+    if (config.volcanoes != null && !Array.isArray(config.volcanoes)) throw new Error("volcanoes must be a list of volcano ids");
+    this._config = { volcano: "auto", count: 5, ...config };
+    if (this._data) this._render();
+  }
+
+  set hass(hass) {
+    const first = !this._hass;
+    this._hass = hass;
+    if (first) this._load();
+  }
+
+  connectedCallback() {
+    if (this._hass && !this._timer) this._load();
+    this._startLoop();
+  }
+
+  disconnectedCallback() {
+    clearTimeout(this._timer);
+    this._timer = null;
+    cancelAnimationFrame(this._raf);
+    this._raf = null;
+  }
+
+  getCardSize() {
+    return this._isList() ? 1 + (this._config.volcanoes?.length || this._config.count || 5) : 6;
+  }
+
+  getGridOptions() {
+    return { columns: 12, min_columns: 6 };
+  }
+
+  _isList() {
+    return (Array.isArray(this._config.volcanoes) && this._config.volcanoes.length > 0) || this._config.volcano === "list";
+  }
+
+  _show(key) {
+    return this._config[key] !== false;
+  }
+
+  async _load() {
+    clearTimeout(this._timer);
+    let wait = DATA_REFRESH_MS;
+    try {
+      this._data = await loadVolcanoData(this._hass);
+      this._render();
+    } catch (err) {
+      wait = 30000;
+      if (!this._data) this._body.innerHTML = `<div class="msg">${err.message === "loading" ? "Magmarium is collecting the first volcano reports..." : `Volcano data not available (${esc(err.message)}). Is the Magmarium integration set up?`}</div>`;
+    }
+    this._timer = setTimeout(() => this._load(), wait);
+  }
+
+  _volcanoes() {
+    return (this._data?.volcanoes || []).filter((v) => Number.isFinite(v.lat) && Number.isFinite(v.lon));
+  }
+
+  _pick() {
+    const list = this._volcanoes();
+    const id = this._config.volcano;
+    if (id && id !== "auto" && id !== "list") return list.find((v) => v.id === id || v.number === Number(String(id).replace("gvp:", ""))) || null;
+    return list.slice().sort((a, b) => activityScore(b) - activityScore(a))[0] || null;
+  }
+
+  _navigate() {
+    const path = this._config.navigation_path;
+    if (!path) return;
+    history.pushState(null, "", path);
+    window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+  }
+
+  _brand() {
+    if (this._config.title === false) return "";
+    const updated = this._data?.updated ? rel(new Date(this._data.updated * 1000).toISOString()) : "";
+    return `<div class="brand"><b>${this._config.title ? esc(this._config.title) : "Magma<span>rium</span>"}</b><span class="sub">${esc(updated)}</span></div>`;
+  }
+
+  _plumeFor(v) {
+    if (!v.ash) return null;
+    const ash = { ...v.ash, elev: v.elev };
+    if (ash.toward_deg == null && v.wind && v.wind.toward_deg != null) ash.toward_deg = v.wind.toward_deg;
+    let p = this._plumes.get(v.id);
+    if (p) p.update(ash);
+    else {
+      p = new AshPlume(v.id, ash);
+      this._plumes.set(v.id, p);
+    }
+    return p;
+  }
+
+  _ejectaFor(v) {
+    const er = v.eruption;
+    if (!(er && er.source === "vona" && (er.age_min ?? 9999) <= 360)) return null;
+    if (!this._ejecta.has(v.id)) this._ejecta.set(v.id, new Ejecta(v.id));
+    return this._ejecta.get(v.id);
+  }
+
+  _render() {
+    if (!this._data) return;
+    this._scenes = [];
+    if (this._isList()) this._renderList();
+    else this._renderOne();
+    this._startLoop();
+  }
+
+  // ------------------------------------------------------------------ list
+
+  _renderList() {
+    let list = this._volcanoes();
+    if (Array.isArray(this._config.volcanoes) && this._config.volcanoes.length) {
+      list = this._config.volcanoes.map((id) => list.find((v) => v.id === id)).filter(Boolean);
+    } else {
+      list = list.slice().sort((a, b) => activityScore(b) - activityScore(a)).slice(0, Math.max(1, Number(this._config.count) || 5));
+    }
+    const home = this._data.home;
+    const rows = list.map((v, i) => {
+      const dist = home && Number.isFinite(home[0]) ? distKm(home[0], home[1], v.lat, v.lon) : null;
+      const where = [v.country, dist != null ? `${fmtInt(Math.round(dist))} km` : ""].filter(Boolean).join(" · ");
+      const state = v.eruption ? (v.eruption.source === "vona" ? `Eruption ${rel(v.eruption.time)}` : "Erupting") : v.ash ? "Ash emission" : (v.weekly?.status || "");
+      return `<div class="row${this._config.navigation_path ? " nav" : ""}"><canvas data-i="${i}" width="92" height="92"></canvas>`
+        + `<div class="n">${esc(v.local || v.name)}<span class="muted">${esc(where)}</span></div>`
+        + `<div class="m"><span class="badge" style="background:${LEVEL_COLORS[v.level] || LEVEL_COLORS[0]}">${esc((LEVEL_NAMES[v.level] || "Unknown").toUpperCase())}</span><span class="muted">${esc(state)}</span></div></div>`;
+    });
+    this._body.innerHTML = `<div class="wrap">${this._brand()}${rows.length ? `<div class="list">${rows.join("")}</div>` : `<div class="msg">None of these volcanoes is in the current reports.</div>`}</div>`;
+    this._body.querySelectorAll(".row canvas").forEach((cv) => {
+      const v = list[Number(cv.dataset.i)];
+      this._scenes.push({ kind: "icon", cv, v, erupt: eruptStrength(v), ej: this._ejectaFor(v) });
+    });
+    if (this._config.navigation_path) this._body.querySelectorAll(".row").forEach((r) => r.addEventListener("click", () => this._navigate()));
+  }
+
+  // ------------------------------------------------------------------ one volcano
+
+  _renderOne() {
+    const v = this._pick();
+    if (!v) {
+      this._body.innerHTML = `<div class="wrap">${this._brand()}<div class="msg">Volcano "${esc(this._config.volcano)}" is not in the current reports. Pick one in the card editor.</div></div>`;
+      return;
+    }
+    const home = this._data.home;
+    const dist = home && Number.isFinite(home[0]) ? distKm(home[0], home[1], v.lat, v.lon) : null;
+    const where = [v.province, v.country].filter(Boolean).join(", ");
+    const parts = [];
+    const nav = this._config.navigation_path ? " nav" : "";
+    if (this._show("scene")) {
+      parts.push(`<div class="scene${nav}"><canvas width="10" height="10"></canvas><div class="ov">${this._brand()}</div></div>`);
+    }
+    parts.push(`<div class="wrap">${this._show("scene") ? "" : this._brand()}`);
+    const badges = [`<span class="badge" style="background:${LEVEL_COLORS[v.level] || LEVEL_COLORS[0]}">${esc((LEVEL_NAMES[v.level] || "Unknown").toUpperCase())}</span>`];
+    if (v.eruption) badges.push(`<span class="badge hot">ERUPTING</span>`);
+    if (v.color) badges.push(`<span class="badge soft">VONA ${esc(v.color)}</span>`);
+    parts.push(`<div class="head${nav}"><h3>${esc(this._config.name || v.local || v.name)}</h3><div class="where">${esc(where)}${v.local && v.local !== v.name ? ` · GVP: ${esc(v.name)}` : ""}</div><div class="badges">${badges.join("")}</div></div>`);
+    if (v.alert || (v.official && v.official.alert)) {
+      const o = v.official;
+      parts.push(`<div class="line"><span class="ic">🏛</span><span class="tx">${esc(v.alert || o.alert)}${o ? `<div class="muted">${esc(OFFICIAL_NAMES[o.source] || o.source)}${o.time ? ` · ${esc(rel(o.time))}` : ""}</div>` : ""}</span></div>`);
+    }
+    const tiles = [];
+    const tile = (k, val, sub) => `<div class="tile"><div class="k">${k}</div><div class="v">${val}</div>${sub ? `<div class="s">${sub}</div>` : ""}</div>`;
+    if (this._show("eruption") && v.eruption) {
+      const er = v.eruption;
+      tiles.push(tile("Eruption", er.source === "vona" ? esc(rel(er.time)) : er.source === "sigmet" ? "Ash SIGMET" : "Ongoing", er.source === "vona" ? "VONA report" : er.source === "sigmet" ? "official ash area" : "weekly report"));
+    }
+    if (this._show("ash") && v.ash) {
+      const a = v.ash;
+      const val = a.above_summit_m != null ? `${fmtInt(a.above_summit_m)} m` : a.top_m != null ? `${fmtInt(a.top_m)} m` : "reported";
+      const sub = [a.above_summit_m != null ? "above summit" : a.top_m != null ? "a.s.l." : "", a.toward_deg != null ? `drift ${compass(a.toward_deg)}` : ""].filter(Boolean).join(" · ");
+      tiles.push(tile("Ash cloud", val, esc(sub)));
+    }
+    if (this._show("wind") && v.wind) {
+      const w = v.wind;
+      tiles.push(tile("Wind", `${fmtInt(Math.round(w.speed_kmh))} km/h ${compass(w.toward_deg)}`, `toward · at ${w.alt_km} km`));
+    }
+    if (this._show("quakes") && v.quakes_7d) {
+      tiles.push(tile("Quakes 7 d", `${v.quakes_7d}`, v.quake_max != null ? `strongest M${v.quake_max}` : "within 30 km"));
+    }
+    const meta = [];
+    if (v.elev != null) meta.push(`${fmtInt(v.elev)} m`);
+    if (dist != null) tiles.push(tile("From home", `${fmtInt(Math.round(dist))} km`, meta.join(" · ") || ""));
+    else if (meta.length) tiles.push(tile("Summit", meta[0], ""));
+    if (tiles.length) parts.push(`<div class="tiles">${tiles.join("")}</div>`);
+    if (this._show("sigmets")) {
+      for (const sg of v.sigmets || []) {
+        parts.push(`<div class="line"><span class="ic">✈</span><span class="tx">Ash SIGMET ${esc(sg.fir || "")}${sg.top_m != null ? ` · up to ${fmtInt(sg.top_m)} m` : ""}<div class="muted">${sg.to ? `valid until ${esc(utc(sg.to))}` : ""}</div></span></div>`);
+      }
+    }
+    if (this._show("camera")) parts.push(this._camHtml(v.id));
+    if (this._show("notice")) {
+      const n = v.notice;
+      if (n) {
+        const head = n.kind === "vona" ? `VONA ${esc(n.color || "")} · ${esc(rel(n.time))}` : `Weekly report ${esc(n.period || "")}`;
+        parts.push(`<div class="notice"><div class="muted">${head}</div>${esc(tidyNotice(n.text))}</div>`);
+      } else if (v.weekly) {
+        parts.push(`<div class="notice"><div class="muted">Weekly report ${esc(v.weekly.period || "")}</div>${esc(v.weekly.text || "")}</div>`);
+      }
+    }
+    if (this._show("links")) {
+      const links = [];
+      const n = v.notice;
+      if (n && n.url && n.kind === "vona") links.push(`<a href="${esc(n.url)}" target="_blank" rel="noopener">VONA notice</a>`);
+      if (v.report) links.push(`<a href="${esc(v.report)}" target="_blank" rel="noopener">MAGMA report</a>`);
+      if (v.official && v.official.url) links.push(`<a href="${esc(v.official.url)}" target="_blank" rel="noopener">${esc(OFFICIAL_NAMES[v.official.source] || "Official notice")}</a>`);
+      links.push(`<a href="${esc(wikiUrl(v.wiki, v.name))}" target="_blank" rel="noopener">Wikipedia</a>`);
+      if (v.number) links.push(`<a href="https://volcano.si.edu/volcano.cfm?vn=${encodeURIComponent(v.number)}" target="_blank" rel="noopener">GVP</a>`);
+      parts.push(`<div class="links">${links.join("")}</div>`);
+    }
+    parts.push(`</div>`);
+    this._body.innerHTML = parts.join("");
+    const cv = this._body.querySelector(".scene canvas");
+    if (cv) {
+      const night = clamp((-sunElevation(v.lat, v.lon, Date.now()) + 2) / 10, 0, 1);
+      this._scenes.push({ kind: "scene", cv, v, erupt: eruptStrength(v), plume: this._plumeFor(v), ej: this._ejectaFor(v), night, stars: null });
+    }
+    if (this._config.navigation_path) this._body.querySelectorAll(".scene, .head").forEach((el) => el.addEventListener("click", () => this._navigate()));
+  }
+
+  // ------------------------------------------------------------------ animation
+
+  _startLoop() {
+    if (this._raf || !this.isConnected || !this._scenes.length) return;
+    const step = (ts) => {
+      this._raf = null;
+      if (!this.isConnected || !this._scenes.length) return;
+      const dt = this._last ? Math.min(0.1, (ts - this._last) / 1000) : 0.016;
+      this._last = ts;
+      this._t += dt;
+      // about 30 frames per second are plenty for a small card
+      this._acc = (this._acc || 0) + dt;
+      if (this._acc >= 1 / 30) {
+        this._acc = 0;
+        for (const sc of this._scenes) this._drawScene(sc, dt);
+      }
+      this._raf = requestAnimationFrame(step);
+    };
+    this._raf = requestAnimationFrame(step);
+  }
+
+  _fit(cv) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return null;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+    }
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+  }
+
+  _drawScene(sc, dt) {
+    const f = this._fit(sc.cv);
+    if (!f) return;
+    const { ctx, w, h } = f;
+    const t = this._t;
+    const v = sc.v;
+    if (sc.plume) sc.plume.step(dt);
+    if (sc.ej) sc.ej.step(dt, t);
+    ctx.clearRect(0, 0, w, h);
+    if (sc.kind === "icon") {
+      const s = 10;
+      const x = w / 2, y = h * 0.8;
+      const night = 0.6;
+      if (v.level >= 4 || (v.level >= 3 && sc.erupt > 0.5)) drawPulse(ctx, x, y, s * 0.8, v.level, t + (v.lat % 1), 0.9);
+      drawVolcano(ctx, x, y, s, { level: v.level, erupting: sc.erupt, night, t, alpha: 1 });
+      if (sc.ej) sc.ej.draw(ctx, x, y - s * 1.45, s * 0.8, night, 1);
+      return;
+    }
+    // sky, from day blue to a deep night with stars
+    const night = sc.night;
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    const mix = (a, b) => a.map((c, i) => Math.round(c + (b[i] - c) * night));
+    const top = mix([86, 128, 170], [6, 8, 20]);
+    const mid = mix([190, 160, 130], [40, 22, 30]);
+    sky.addColorStop(0, `rgb(${top})`);
+    sky.addColorStop(0.75, `rgb(${mid})`);
+    sky.addColorStop(1, `rgb(${mix([120, 90, 70], [20, 12, 10])})`);
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, h);
+    if (night > 0.3) {
+      if (!sc.stars) sc.stars = Array.from({ length: 50 }, (_, i) => [((i * 97.3) % 100) / 100, ((i * 57.1) % 60) / 100, (i % 3) * 0.4 + 0.4, i * 1.7]);
+      ctx.fillStyle = "#fff";
+      for (const [sx, sy, r, ph] of sc.stars) {
+        ctx.globalAlpha = (night - 0.3) * (0.5 + 0.5 * Math.sin(t * 1.3 + ph));
+        ctx.fillRect(sx * w, sy * h, r, r);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // drift direction: east to the right, north and south a little up and down
+    let dir = null;
+    if (sc.plume && sc.plume.dirDeg != null) {
+      const a = (sc.plume.dirDeg * Math.PI) / 180;
+      const dx = Math.sin(a), dy = -Math.cos(a) * 0.35;
+      const n = Math.hypot(dx, dy) || 1;
+      dir = [dx / n, dy / n];
+    }
+    const s = Math.min(34, h * 0.24);
+    const ground = h - 16;
+    const x = dir ? (dir[0] >= 0 ? w * 0.3 : w * 0.7) : w * 0.5;
+    // distant hills
+    ctx.fillStyle = `rgba(${mix([70, 55, 45], [12, 8, 8])},1)`;
+    ctx.beginPath();
+    ctx.moveTo(0, ground + 2);
+    for (let i = 0; i <= 12; i++) {
+      const px = (i / 12) * w;
+      ctx.lineTo(px, ground - 6 - 8 * Math.abs(Math.sin(i * 1.7 + v.lat)));
+    }
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fill();
+    if (v.level >= 4 || (v.level >= 3 && sc.erupt > 0.5)) drawPulse(ctx, x, ground, s, v.level, t + (v.lat % 1), 0.9);
+    drawVolcano(ctx, x, ground, s, { level: v.level, erupting: sc.erupt, night, t, alpha: 1 });
+    const craterY = ground - s * 1.45;
+    if (sc.ej) sc.ej.draw(ctx, x, craterY, s * 0.5, night, 1);
+    // a bit stronger than on the globe, the sky behind it is light in daylight
+    if (sc.plume) {
+      // fill the sky above the crater: small plumes are scaled up, tall ones fit the scene
+      const H0 = Math.min(130, 20 + sc.plume.km * 15);
+      const zf = clamp((craterY - 12) / H0, 0.6, 2.6);
+      sc.plume.draw(ctx, x, craterY, s, zf, dir, night, sc.erupt, t, 1.5 + 0.5 * (1 - night), 1.6);
+    }
+    // foreground ground
+    ctx.fillStyle = `rgb(${mix([60, 44, 34], [10, 6, 5])})`;
+    ctx.fillRect(0, ground + 4, w, h - ground);
+  }
+}
+
+MagmariumVolcanoCard.prototype._camHtml = MagmariumCard.prototype._camHtml;
+
+const VC_LABELS = {
+  volcano: "Volcano",
+  volcanoes: "Several volcanoes as a list (instead of one)",
+  count: "Volcanoes in the list (most active first)",
+  name: "Name (empty = volcano name)",
+  title: "Header (empty = Magmarium)",
+  navigation_path: "Open on tap (e.g. /dashboard-volcano/globe)",
+  scene: "Animated volcano",
+  eruption: "Eruption",
+  ash: "Ash cloud",
+  sigmets: "Ash SIGMETs",
+  quakes: "Earthquakes",
+  wind: "Wind at plume height",
+  camera: "Live camera",
+  notice: "Latest report",
+  links: "Links",
+};
+
+class MagmariumVolcanoCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+
+  set hass(hass) {
+    const first = !this._hass;
+    this._hass = hass;
+    if (this._form) this._form.hass = hass;
+    if (first) {
+      loadVolcanoData(hass)
+        .then((data) => {
+          this._list = data.volcanoes || [];
+          this._render();
+        })
+        .catch(() => {});
+    }
+  }
+
+  _schema() {
+    const opts = (this._list || [])
+      .slice()
+      .sort((a, b) => (a.local || a.name).localeCompare(b.local || b.name))
+      .map((v) => ({ value: v.id, label: `${v.local || v.name}${v.country ? ` (${v.country})` : ""} · ${LEVEL_NAMES[v.level] || "Unknown"}` }));
+    return [
+      {
+        name: "volcano",
+        selector: { select: { mode: "dropdown", options: [{ value: "auto", label: "Most active volcano right now" }, { value: "list", label: "List of the most active volcanoes" }, ...opts] } },
+      },
+      { name: "volcanoes", selector: { select: { multiple: true, mode: "dropdown", options: opts } } },
+      {
+        type: "grid",
+        name: "",
+        schema: [
+          { name: "name", selector: { text: {} } },
+          { name: "title", selector: { text: {} } },
+          { name: "count", selector: { number: { min: 1, max: 15, mode: "box" } } },
+        ],
+      },
+      { name: "navigation_path", selector: { text: {} } },
+      { type: "expandable", name: "", title: "What to show", schema: [{ type: "grid", name: "", schema: VC_SHOW.map((name) => ({ name, selector: { boolean: {} } })) }] },
+    ];
+  }
+
+  _render() {
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (s) => VC_LABELS[s.name] || s.name;
+      this._form.addEventListener("value-changed", (ev) => {
+        const value = { ...ev.detail.value };
+        for (const k of Object.keys(value)) {
+          if (value[k] === "" || value[k] == null || (Array.isArray(value[k]) && !value[k].length)) delete value[k];
+          else if (VC_SHOW.includes(k) && value[k] === true) delete value[k];
+        }
+        if (value.count === 5) delete value.count;
+        this._config = value;
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: value }, bubbles: true, composed: true }));
+      });
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = this._schema();
+    const data = { volcano: "auto", count: 5, ...this._config };
+    for (const k of VC_SHOW) data[k] = this._config?.[k] !== false;
+    this._form.data = data;
+  }
+}
+
+if (!customElements.get("magmarium-volcano-card-editor")) {
+  customElements.define("magmarium-volcano-card-editor", MagmariumVolcanoCardEditor);
+}
+
+if (!customElements.get("magmarium-volcano-card")) {
+  customElements.define("magmarium-volcano-card", MagmariumVolcanoCard);
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: "magmarium-volcano-card",
+    name: "Magmarium Volcano",
+    description: "Compact card with an animated volcano, or a list of the most active volcanoes, without the globe.",
+    preview: true,
+    documentationURL: "https://github.com/mb26-dev/ha-magmarium",
+  });
 }
