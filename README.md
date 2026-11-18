@@ -33,11 +33,11 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 
 ![The whole globe with every active volcano](docs/images/globe.jpg)
 
-**Compact volcano card for the home dashboard:** an animated volcano with its ash plume, or a list of the most active volcanoes, without the globe
+**Compact volcano card for the home dashboard:** an animated volcano with its ash plume, the nearest volcanoes with eruption, ash cloud and the latest report (long reports open with "Show more"), or a list of the most active volcanoes, without the globe
 
-![Compact volcano cards: an erupting volcano with ash plume, a volcano at night and a list of the most active volcanoes](docs/images/volcano-card.jpg)
+![Compact volcano cards: an erupting volcano with ash plume, the detailed list sorted by distance with an opened report, and the most active volcanoes](docs/images/volcano-card.jpg)
 
-<sub>The globe screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery.</sub>
+<sub>All screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery.</sub>
 
 ## Features
 
