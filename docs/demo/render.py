@@ -54,17 +54,23 @@ async def fly(page, lat: float, lon: float, zoom: float, region: str | None = No
     await page.wait_for_timeout(2600)
 
 
-async def select(page, name: str) -> bool:
+async def select(page, name: str, camera: str | None = None) -> bool:
     found = await page.evaluate(
-        """(name) => {
+        """([name, camera]) => {
             const c = window.__card;
             const v = c._volcanoes.find((x) => x.name === name || x.local === name);
             if (!v) return false;
+            const cams = (c._data.cams || {})[v.id];
+            if (camera && cams) {
+                // show a daylight camera first instead of a thermal one
+                const i = cams.findIndex((x) => x[2] && x[1].includes(camera));
+                if (i > 0) cams.unshift(...cams.splice(i, 1));
+            }
             c._selected = { kind: 'volcano', v };
             c._renderInfo();
             return true;
         }""",
-        name,
+        [name, camera],
     )
     await page.wait_for_timeout(3500)  # camera images load from the observatories
     return found
@@ -129,7 +135,7 @@ async def main() -> None:
 
         # 5 live camera of the observatory
         await fly(page, 19.4, -155.3, 7.0, "hawaii")
-        if await select(page, "Kilauea"):
+        if await select(page, "Kilauea", "KO"):
             await shot(page, "live-camera")
         await unselect(page)
 
