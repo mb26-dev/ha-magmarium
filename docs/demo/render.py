@@ -169,6 +169,25 @@ async def main() -> None:
             await page.wait_for_timeout(4000)
             await shot(page, "replay")
 
+        # 7 the compact volcano cards: one volcano, the detailed list with a report opened, the most active
+        cards = await browser.new_page(viewport={"width": 1440, "height": 900}, device_scale_factor=SCALE)
+        cards.on("pageerror", lambda e: errors.append(str(e)))
+        await cards.goto(URL.replace("render.html", "cards.html"))
+        await cards.wait_for_function("window.__cards && window.__cards.every((c) => c.shadowRoot.querySelector('.wrap'))", timeout=60000)
+        await cards.wait_for_timeout(2500)
+        # open the second long report, so both "Show less" and "Show more" are visible
+        await cards.evaluate(
+            """() => {
+                const btns = window.__cards[1].shadowRoot.querySelectorAll('.more');
+                if (btns.length > 1) btns[1].click();
+            }"""
+        )
+        await cards.wait_for_timeout(1500)
+        wrap = cards.locator("#wrap")
+        OUT.mkdir(parents=True, exist_ok=True)
+        await wrap.screenshot(path=str(OUT / "volcano-card.jpg"), type="jpeg", quality=86)
+        print("wrote docs/images/volcano-card.jpg")
+
         await browser.close()
         if errors:
             print("page errors:", errors)

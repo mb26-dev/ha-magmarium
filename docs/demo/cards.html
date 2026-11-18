@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Magmarium compact cards</title>
+<style>
+  html, body { margin: 0; background: #141414; }
+  #wrap { display: grid; grid-template-columns: repeat(3, 440px); gap: 24px; align-items: start; padding: 14px; width: max-content; }
+</style>
+</head>
+<body>
+<div id="wrap"></div>
+<script type="module">
+// Renders the compact volcano cards with a data snapshot (docs/demo/payload.json).
+// Used by docs/demo/render.py for docs/images/volcano-card.jpg.
+const payload = await (await fetch("payload.json")).json();
+// the snapshot has no home location: measure the distances from Jakarta for the demo
+payload.home = [-6.2, 106.8];
+
+const snapshot = payload.updated * 1000;
+const start = performance.now();
+Date.now = () => snapshot + (performance.now() - start);
+
+const json = (data) => new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } });
+const hass = {
+  config: { latitude: -6.2, longitude: 106.8, time_zone: "Asia/Jakarta" },
+  fetchWithAuth: async (url) => (url.includes("/volcanoes") ? json(payload) : new Response("{}", { status: 404 })),
+};
+
+await import("../../custom_components/magmarium/frontend/magmarium-card.js");
+const configs = [
+  { volcano: "gvp:263300" },
+  { volcanoes: ["gvp:262000", "gvp:263250", "gvp:263300", "gvp:261080"], sort: "distance", details: true, title: "Volcano Watch" },
+  { volcano: "list", count: 6, title: "Most active" },
+];
+window.__cards = configs.map((cfg) => {
+  const card = document.createElement("magmarium-volcano-card");
+  card.setConfig(cfg);
+  document.getElementById("wrap").appendChild(card);
+  card.hass = hass;
+  return card;
+});
+</script>
+</body>
+</html>
