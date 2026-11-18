@@ -196,7 +196,9 @@ def active_tsunami(events: list[dict[str, Any]], now: datetime) -> list[dict[str
 
 FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv/{key}/{source}/{area}/{days}"
 FIRMS_PAGE = "https://firms.modaps.eosdis.nasa.gov/map/"
-FIRMS_SOURCES = ("VIIRS_NOAA20_NRT", "VIIRS_SNPP_NRT")
+# VIIRS on three satellites; S-NPP has gaps, NOAA-20 and NOAA-21 pass about 50 minutes apart
+FIRMS_SOURCES = ("VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT", "VIIRS_SNPP_NRT")
+FIRMS_LABELS = {"VIIRS_NOAA20_NRT": "VIIRS NOAA-20", "VIIRS_NOAA21_NRT": "VIIRS NOAA-21", "VIIRS_SNPP_NRT": "VIIRS S-NPP"}
 FIRMS_DAYS = 2
 # hotspots within this distance of the summit count for the volcano
 FIRMS_RADIUS_KM = 5.0

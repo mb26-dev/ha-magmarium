@@ -95,6 +95,7 @@ from .hazards import (
     FIRE_DAYS,
     FIRE_HOURS,
     FIRMS_DAYS,
+    FIRMS_LABELS,
     FIRMS_SOURCES,
     FIRMS_URL,
     TSUNAMI_ATOM_URLS,
@@ -420,7 +421,7 @@ class MagmariumData:
                 async with sem:
                     text = await self._get(url)
                 points = await self.hass.async_add_executor_job(parse_firms, text)
-                label = "VIIRS NOAA-20" if "NOAA20" in source else "VIIRS S-NPP"
+                label = FIRMS_LABELS[source]
                 summary = merge_thermal(summary, thermal_summary(points, v["lat"], v["lon"], label))
             if summary:
                 found[v["id"]] = summary
@@ -445,7 +446,7 @@ class MagmariumData:
         points: list[dict[str, Any]] = []
         errors: list[str] = []
         for source in FIRMS_SOURCES:
-            label = "VIIRS NOAA-20" if "NOAA20" in source else "VIIRS S-NPP"
+            label = FIRMS_LABELS[source]
             url = FIRMS_URL.format(key=self.firms_key, source=source, area=area, days=FIRE_DAYS)
             try:
                 text = await self._get(url)
@@ -470,7 +471,8 @@ class MagmariumData:
             "updated": now.isoformat(),
             "hotspots": len(points),
             "radius_km": self.fire_radius_km,
-            "satellites": [s for s in ("VIIRS NOAA-20", "VIIRS S-NPP") if not any(e.startswith(s) for e in errors)],
+            # satellites that answered and saw at least one hotspot
+            "satellites": sorted({p["src"] for p in points}),
         }
 
     async def _refresh_cams(self) -> None:
