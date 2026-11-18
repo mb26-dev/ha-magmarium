@@ -104,6 +104,9 @@
       },
       "wildfires": {
         "name": "Wildfires"
+      },
+      "quakes_near_home": {
+        "name": "Earthquakes near home"
       }
     },
     "binary_sensor": {
