@@ -33,11 +33,17 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 
 ![The whole globe with every active volcano](docs/images/globe.jpg)
 
+**Wildfires** (with a free NASA FIRMS key): the fires of the last 24 hours on the globe and in their own card with a zoomable NASA map, your places and the nearest fires
+
+![Wildfires of the last 24 hours on the globe, the strongest with a flame marker](docs/images/wildfires.jpg)
+
+![Wildfire card: relief map with places and the nearest fires, and the satellite image of the region](docs/images/fire-card.jpg)
+
 **Compact volcano card for the home dashboard:** an animated volcano with its ash plume, the nearest volcanoes with eruption, ash cloud and the latest report (long reports open with "Show more"), or a list of the most active volcanoes, without the globe
 
 ![Compact volcano cards: an erupting volcano with ash plume, the detailed list sorted by distance with an opened report, and the most active volcanoes](docs/images/volcano-card.jpg)
 
-<sub>All screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery.</sub>
+<sub>All screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery. The wildfires are the real fires of the last 24 hours in South East Asia from the public NASA FIRMS files, shown around the place where most of them burn.</sub>
 
 ## Features
 

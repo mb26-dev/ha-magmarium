@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0b4 - 2026-11-18
+
+- Satellite hotspots and wildfires also come from **VIIRS NOAA-21**. S-NPP currently delivers no data, so before this only NOAA-20 was used
+- The wildfire card lists the satellites that saw the fires
+- Air quality tile: PM2.5 sensors without a unit are read as µg/m³ and get their rating (good, moderate, unhealthy)
+- README: screenshots of the wildfires on the globe and of the wildfire card, rendered with the real fires of the last 24 hours
+
 ## 0.2.0b3 - 2026-11-18
 
 - **Wildfires** (with the NASA FIRMS key): VIIRS fire detections of the last 48 hours within a radius around home (new setting, default 1500 km, checked every hour), grouped into fires: 5 km cells within 400 km of home, 50 km cells further away. Hotspots at volcanoes are left out. Both satellites see the same fire about an hour apart, so per fire the pass with more power counts, not the sum
