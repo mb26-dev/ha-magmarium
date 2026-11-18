@@ -20,7 +20,7 @@ pkg.__path__ = [str(ROOT / "custom_components" / "magmarium")]
 sys.modules["magmarium_demo"] = pkg
 import magmarium_demo.extra as ex  # noqa: E402
 
-# places on the Ring of Fire; the one with the most quakes this week gets the screenshot
+# places on the Ring of Fire; the one with the strongest quakes this week gets the screenshot
 FOCUS = [
     ("Jakarta", -6.2, 106.8, [("Sumatra", -1.0, 100.5, 450), ("Java", -7.5, 110.0, 350), ("Bali & Lombok", -8.5, 116.0, 250), ("Banda Sea", -6.5, 128.0, 500)]),
     ("Tokyo", 35.68, 139.69, [("Kanto", 35.9, 140.0, 200), ("Tohoku", 38.5, 141.5, 300), ("Izu Islands", 32.5, 140.0, 300), ("Hokkaido", 43.0, 143.0, 350)]),
@@ -46,7 +46,8 @@ def main() -> None:
         return
     quakes = ex.parse_quakes(texts)
     rows = [[q["lat"], q["lon"], q["mag"], q["depth_km"], q["time"], q["place"], q["url"], None] for q in quakes]
-    best = max(FOCUS, key=lambda f: sum(1 for q in quakes if dist((f[1], f[2]), (q["lat"], q["lon"])) <= 1200))
+    # weighted by strength (10 ** (M - 4)), so one M5.5 counts more than many small quakes
+    best = max(FOCUS, key=lambda f: sum(10 ** (q["mag"] - 4) for q in quakes if dist((f[1], f[2]), (q["lat"], q["lon"])) <= 1200))
     focus = {
         "name": best[0], "lat": best[1], "lon": best[2],
         "places": [{"name": n, "lat": la, "lon": lo, "radius_km": r} for n, la, lo, r in best[3]],
