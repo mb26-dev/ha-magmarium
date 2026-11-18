@@ -894,7 +894,8 @@ export function defineFireCard({ VERSION, loadData, refreshMs }) {
         }
       }
       const upd = this._data.fires_meta?.updated;
-      html += `<div class="foot"><span>Satellites: VIIRS NOAA-20 / S-NPP via <a href="${FIRMS_MAP}" target="_blank" rel="noopener">NASA FIRMS</a></span>${upd ? `<span>checked ${esc(ago(upd))}</span>` : ""}</div>`;
+      const sats = (this._data.fires_meta?.satellites || []).map((x) => String(x).replace("VIIRS ", "")).join(", ");
+      html += `<div class="foot"><span>VIIRS${sats ? ` ${esc(sats)}` : ""} via <a href="${FIRMS_MAP}" target="_blank" rel="noopener">NASA FIRMS</a></span>${upd ? `<span>checked ${esc(ago(upd))}</span>` : ""}</div>`;
       wrap.innerHTML = html;
       wrap.querySelectorAll(".tile[data-lat]").forEach((el) => el.addEventListener("click", () => {
         const lat = Number(el.dataset.lat);
@@ -916,7 +917,9 @@ export function defineFireCard({ VERSION, loadData, refreshMs }) {
       const st = id && this._hass?.states[id];
       if (!st) return "";
       const v = Number(st.state);
-      const unit = st.attributes.unit_of_measurement || "";
+      // PM2.5 sensors without a unit are read as µg/m³
+      const pm = /pm_?2[._]?5/i.test(`${id} ${st.attributes.friendly_name || ""}`);
+      const unit = st.attributes.unit_of_measurement || (pm ? "µg/m³" : "");
       const name = this._config.air_quality_name || "Air quality";
       let col = "#7dd3c0";
       let txt = "good";

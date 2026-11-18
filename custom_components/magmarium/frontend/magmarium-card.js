@@ -7,7 +7,7 @@ import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./ma
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 import { defineFireCard } from "./magmarium-fire.js";
 
-const VERSION = "0.2.0b3";
+const VERSION = "0.2.0b4";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
