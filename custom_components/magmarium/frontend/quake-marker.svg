@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Animated Globe Earthquake Marker">
+  <defs>
+    <!-- Dark Volumetric Fractured Earth Gradients (Matches Volcanic/Tsunami Dark Digital Theme) -->
+    <linearGradient id="rockGradEQ" x1="10%" y1="100%" x2="90%" y2="0%">
+      <stop offset="0%" stop-color="#0b131f" />
+      <stop offset="52%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#475569" />
+    </linearGradient>
+
+    <!-- Glowing Sub-fissure Energy & Molten Fault lines -->
+    <linearGradient id="faultGradEQ" x1="50%" y1="100%" x2="50%" y2="0%">
+      <stop offset="0%" stop-color="#7f1d1d" />
+      <stop offset="35%" stop-color="#ea580c" />
+      <stop offset="78%" stop-color="#facc15" />
+      <stop offset="100%" stop-color="#ffffff" />
+    </linearGradient>
+
+    <!-- Perspective Seismic Ground Ring (Expanding ripples) -->
+    <linearGradient id="rippleGradEQ" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f97316" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#fef08a" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#ef4444" stop-opacity="0.8" />
+    </linearGradient>
+
+    <!-- Hotspot Radiant Pool Glow -->
+    <radialGradient id="poolGlowEQ" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f97316" stop-opacity="0.55" />
+      <stop offset="65%" stop-color="#e11d48" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#7f1d1d" stop-opacity="0" />
+    </radialGradient>
+
+    <filter id="shadowEQ" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.4" flood-color="#020617" flood-opacity="0.85" />
+    </filter>
+
+    <filter id="glowEQ" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="1.6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 1. Globe-Surface Perspective Seismological Ripples -->
+  <g>
+    <!-- Soft Sub-surface Shockwave Glow -->
+    <ellipse cx="64" cy="96" rx="46" ry="14" fill="url(#poolGlowEQ)" />
+
+    <!-- Expanding Seismic / Tectonic Ripple 1 -->
+    <ellipse cx="64" cy="96" rx="40" ry="12.2" fill="none" stroke="#f97316" stroke-width="1.6" opacity="0.9">
+      <animate attributeName="rx" values="32; 62" dur="1.8s" repeatCount="indefinite" />
+      <animate attributeName="ry" values="9.8; 18.9" dur="1.8s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.95; 0" dur="1.8s" repeatCount="indefinite" />
+      <animate attributeName="stroke-width" values="1.8; 0.4" dur="1.8s" repeatCount="indefinite" />
+    </ellipse>
+
+    <!-- Expanding Seismic Ripple 2 (Staggered) -->
+    <ellipse cx="64" cy="96" rx="40" ry="12.2" fill="none" stroke="#facc15" stroke-width="1.3" opacity="0.8">
+      <animate attributeName="rx" values="32; 62" dur="1.8s" begin="0.9s" repeatCount="indefinite" />
+      <animate attributeName="ry" values="9.8; 18.9" dur="1.8s" begin="0.9s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.85; 0" dur="1.8s" begin="0.9s" repeatCount="indefinite" />
+      <animate attributeName="stroke-width" values="1.4; 0.3" dur="1.8s" begin="0.9s" repeatCount="indefinite" />
+    </ellipse>
+  </g>
+
+  <!-- 2. Rumble/Debris Particle Physics -->
+  <g>
+    <circle cx="56" cy="42" r="1.6" fill="#facc15">
+      <animate attributeName="cy" values="76; 22" dur="1.4s" repeatCount="indefinite" />
+      <animate attributeName="cx" values="56; 41" dur="1.4s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.95; 0" dur="1.4s" repeatCount="indefinite" />
+    </circle>
+    <circle cx="72" cy="46" r="1.4" fill="#fb923c">
+      <animate attributeName="cy" values="72; 16" dur="1.4s" begin="0.45s" repeatCount="indefinite" />
+      <animate attributeName="cx" values="72; 81" dur="1.4s" begin="0.45s" repeatCount="indefinite" />
+      <animate attributeName="opacity" values="0.9; 0" dur="1.4s" begin="0.45s" repeatCount="indefinite" />
+    </circle>
+    <!-- Tiny Rock Fragment Ejected -->
+    <polygon points="59,62 62,58 65,61 63,65" fill="#475569" stroke="#1e293b" stroke-width="0.5">
+      <animateTransform attributeName="transform" type="translate" values="0 0; -12 -38" dur="1.4s" begin="0.2s" repeatCount="indefinite" />
+      <animateTransform attributeName="transform" type="rotate" values="0 62 61.5; 360 62 61.5" dur="1.4s" begin="0.2s" repeatCount="indefinite" additive="sum" />
+      <animate attributeName="opacity" values="1; 0" dur="1.4s" begin="0.2s" repeatCount="indefinite" />
+    </polygon>
+  </g>
+
+  <!-- 3. Heavy 3D Fractured Earth Slabs and Energetic Fault line -->
+  <g filter="url(#shadowEQ)">
+    <!-- Rumbling Group -->
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="-0.8 0.6; 0.9 -0.5; -1.2 -0.2; 1.1 0.7; -0.4 -0.8; 0.6 0.2; -0.8 0.6" keyTimes="0; 0.16; 0.33; 0.5; 0.66; 0.83; 1" dur="0.14s" repeatCount="indefinite" />
+
+      <!-- Base Rock Plate / Fissured Crust -->
+      <!-- Left Jagged Fractured Slab -->
+      <path d="M 18 96 C 24 88, 38 88, 50 92 L 53 85 L 43 78 L 52 70 L 46 62 L 31 69 L 22 79 Z" fill="url(#rockGradEQ)" stroke="#020617" stroke-width="0.95" stroke-linejoin="round" />
+      <!-- Right Jagged Fractured Slab -->
+      <path d="M 110 96 C 104 88, 90 88, 78 92 L 75 85 L 85 78 L 76 70 L 82 62 L 97 69 L 106 79 Z" fill="url(#rockGradEQ)" stroke="#020617" stroke-width="0.95" stroke-linejoin="round" />
+
+      <!-- Splitting, Glowing Fault Energy in the Crevice -->
+      <path d="M 45 94 L 54 84 L 46 76 L 56 68 L 50 60 L 59 52 L 67 44 L 69 54 L 61 62 L 70 69 L 63 77 L 73 85 L 63 94 Z" fill="url(#faultGradEQ)" filter="url(#glowEQ)" />
+      <path d="M 46 95 L 53 85 L 45 77 L 54 69 L 49 61 L 58 53 L 65 46 L 68 55 L 62 63 L 69 70 L 64 78 L 71 85 L 64 95 Z" fill="#ffffff" filter="url(#glowEQ)" />
+
+      <!-- Deep Earth magma-glow background showing behind fracture -->
+      <path d="M 44 95 L 55 83 L 45 74 L 56 67 L 48 58 L 62 43 L 73 53 L 62 63 L 71 70 L 62 79 L 74 86 L 62 96 Z" fill="#7f1d1d" opacity="0.45" stroke="#1e0c0c" stroke-width="0.5" />
+    </g>
+  </g>
+
+  <!-- 4. Pure High-Frequency Seismic Zigzag Shockwaves -->
+  <g filter="url(#glowEQ)">
+    <g>
+      <animateTransform attributeName="transform" type="translate" values="0.4 -0.3; -0.4 0.5; 0.2 -0.5; -0.5 0.3; 0.3 -0.2; 0 0" dur="0.1s" repeatCount="indefinite" />
+      
+      <!-- Center Main Sharp Seismic Blast Zick-Zack Signal -->
+      <path d="M 38 85 L 49 55 L 57 66 L 64 26 L 71 63 L 79 49 L 90 85" fill="none" stroke="#facc15" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+        <animate attributeName="stroke-width" values="2.6; 4.4; 2.6" dur="0.8s" repeatCount="indefinite" />
+      </path>
+      <!-- White-hot high contrast core wave -->
+      <path d="M 38 85 L 49 55 L 57 66 L 64 26 L 71 63 L 79 49 L 90 85" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+
+      <!-- Background fading vibration shock line left -->
+      <path d="M 28 82 L 36 62 L 44 71 L 49 46 L 54 74 L 59 62 M 69 62 L 74 74 L 79 46 L 84 71 L 92 62 L 100 82" fill="none" stroke="#ea580c" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.75" />
+    </g>
+  </g>
+
+  <!-- 5. 3D perspective ground border overlap fragment -->
+  <path d="M 24 96 A 40 12.2 0 0 0 104 96" fill="none" stroke="url(#rippleGradEQ)" stroke-width="3.0" stroke-linecap="round" filter="url(#glowEQ)" />
+</svg>

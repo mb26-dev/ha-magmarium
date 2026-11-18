@@ -5,9 +5,9 @@
 
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
-import { defineFireCard } from "./magmarium-fire.js";
+import { defineMapCards } from "./magmarium-maps.js";
 
-const VERSION = "0.2.0b4";
+const VERSION = "0.2.0b5";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -2164,8 +2164,8 @@ async function loadVolcanoData(hass, force = false) {
   return VC_DATA.busy;
 }
 
-// regional wildfire card (own module, shares the data download)
-defineFireCard({ VERSION, loadData: loadVolcanoData, refreshMs: DATA_REFRESH_MS });
+// regional map cards for wildfires, earthquakes and lightning (own module, shares the data download)
+defineMapCards({ VERSION, loadData: loadVolcanoData, refreshMs: DATA_REFRESH_MS });
 
 /** sun elevation in degrees at a place and time (simple solar position, good to about 1 degree) */
 function sunElevation(lat, lon, ms) {
