@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 - 2026-11-18
+
+- New daylight mode: the whole visible globe is lit evenly, so no region lies in the dark. It is on by default; the new sun / moon button switches between daylight and the real day and night with city lights and glowing craters. The browser remembers the last choice, the card option "Daylight" sets the default
+
 ## 0.1.0 - 2026-11-18
 
 First stable release. Everything from the betas, tested in daily use:

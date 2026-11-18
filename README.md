@@ -40,6 +40,7 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 **Lovelace card** `custom:magmarium-card` (installed and registered automatically)
 
 - Globe with real NASA imagery: Blue Marble by day, city lights by night, live day and night terminator
+- **Daylight mode** (default): the whole visible globe is lit, nothing lies in the dark; the sun / moon button switches to the real day and night
 - Every volcano with a current report drawn as a small 3D cone, ringed in the colour of its alert level (Normal, Advisory, Watch, Warning)
 - **Eruptions:** glowing crater, lava running down the flanks and glowing ejecta, stronger on the night side
 - **Ash clouds from VONA:** the plume rises to the reported height above the summit, drifts in the reported direction, takes the reported colour (white, grey, black) and density (thin, medium, thick) and fades out within 4 hours. A newer notice without ash makes the old cloud fade faster.
@@ -125,6 +126,7 @@ center: home           # home, world, ring_of_fire, a region key (see below) or 
 zoom: 2.4              # 1 shows the whole globe
 regions: true          # region buttons; false hides them, a list picks and orders them
 rotate: false          # slow rotation when nobody touches the card
+daylight: true         # whole globe lit; false shows the real day and night (the button switches)
 show_all: true         # all known volcanoes as small background cones
 weekly_ash: true       # light ash plumes for ash reported in the weekly report
 wind_tracks: true      # dashed 6 hour ash drift tracks from forecast winds
