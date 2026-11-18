@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Magmarium earthquake card</title>
+<style>
+  html, body { margin: 0; background: #141414; }
+  #wrap { display: grid; grid-template-columns: repeat(2, 440px); gap: 24px; align-items: start; padding: 14px; width: max-content; }
+</style>
+</head>
+<body>
+<div id="wrap"></div>
+<script type="module">
+// Renders the earthquake card with the real USGS quakes of the week around the place on the
+// Ring of Fire with the most of them (docs/demo/quakes.json,
+// made by quakes.py from the public USGS feeds; without it the snapshot in payload.json).
+// Used by render.py for docs/images/quake-card.jpg.
+const payload = await (await fetch("payload.json")).json();
+let snapshot = payload.updated * 1000;
+let focus = {
+  name: "Jakarta", lat: -6.2, lon: 106.8,
+  places: [
+    { name: "Sumatra", lat: -1.0, lon: 100.5, radius_km: 450 },
+    { name: "Java", lat: -7.5, lon: 110.0, radius_km: 350 },
+    { name: "Bali & Lombok", lat: -8.5, lon: 116.0, radius_km: 250 },
+    { name: "Banda Sea", lat: -6.5, lon: 128.0, radius_km: 500 },
+  ],
+};
+try {
+  const live = await (await fetch("quakes.json")).json();
+  payload.quakes = live.quakes;
+  snapshot = live.updated * 1000;
+  if (live.focus) focus = live.focus;
+} catch (_e) { /* keep the snapshot */ }
+payload.tsunami = [];
+
+const start = performance.now();
+Date.now = () => snapshot + (performance.now() - start);
+
+const HOME = { lat: focus.lat, lon: focus.lon };
+const json = (data) => new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } });
+const hass = {
+  config: { latitude: HOME.lat, longitude: HOME.lon, time_zone: "UTC" },
+  locale: { language: "en" },
+  states: {},
+  fetchWithAuth: async (url) => (url.includes("/volcanoes") ? json({ ...payload, home: [HOME.lat, HOME.lon] }) : new Response("{}", { status: 404 })),
+};
+
+await import("../../custom_components/magmarium/frontend/magmarium-card.js");
+const base = {
+  title: "Earthquake Watch",
+  home_name: focus.name,
+  height: 300,
+  radius_km: 2000,
+  days: 7,
+  min_magnitude: 2.5,
+  places: focus.places,
+};
+const configs = [
+  { ...base, view: 1, views: [{ name: "Near", radius_km: 400 }, { name: "Region", radius_km: 1200 }, { name: "Wide", radius_km: 2100 }] },
+  { ...base, map: "satellite", list: 0, view: 0, views: [{ name: "Region", radius_km: 900 }, { name: "Wide", radius_km: 2100 }] },
+];
+window.__cards = configs.map((cfg) => {
+  const card = document.createElement("magmarium-quake-card");
+  card.setConfig(cfg);
+  document.getElementById("wrap").appendChild(card);
+  card.hass = hass;
+  return card;
+});
+</script>
+</body>
+</html>
