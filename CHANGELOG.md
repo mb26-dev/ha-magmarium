@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0b2 - 2026-11-18
+
+- Tsunami events get their own animated marker on the globe (a breaking wave on a ground ring in the colour of the alert) and in the banner of the compact card
+
 ## 0.2.0b1 - 2026-11-18
 
 - **Tsunami warnings:** official bulletins of NOAA (PTWC, NTWC) and BMKG InaTEWS, merged per event. On the globe they roll out as waves from the epicentre in the colour of the alert (warning / threat red, watch orange, advisory yellow, information blue), with a label and an info panel with the bulletin. Warnings stay 12 hours after the last bulletin, information statements 3 hours; cancellations remove them. New sensor "Tsunami alerts", new card option `tsunami`, a banner in the compact card (`tsunami: false` hides it). Switched on for existing installations
