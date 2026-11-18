@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0b3 - 2026-11-18
+
+- **Wildfires** (with the NASA FIRMS key): VIIRS fire detections of the last 48 hours within a radius around home (new setting, default 1500 km, checked every hour), grouped into fires: 5 km cells within 400 km of home, 50 km cells further away. Hotspots at volcanoes are left out. Both satellites see the same fire about an hour apart, so per fire the pass with more power counts, not the sum
+- New sensor "Wildfires": fires of the last 24 hours with nearest distance and direction, strongest fire, fires within 25 / 100 / 300 km and the 25 nearest fires
+- Wildfires on the globe as glowing embers in the colour of their power, the strongest with an animated flame marker; tap for the details. New card option `fires`
+- **New wildfire card** `custom:magmarium-fire-card`: zoomable and draggable map (NASA Blue Marble relief or today's VIIRS satellite image), your own places as tiles, an optional air quality tile, the nearest fires and a link to the NASA FIRMS map
+
 ## 0.2.0b2 - 2026-11-18
 
 - Tsunami events get their own animated marker on the globe (a breaking wave on a ground ring in the colour of the alert) and in the banner of the compact card

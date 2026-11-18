@@ -18,7 +18,7 @@
 
 Active volcanoes on a living globe for Home Assistant. Magmarium shows **every volcano with a current report** on a 3D Earth: coloured by its official alert level, glowing while it erupts, and with **ash plumes that rise and drift exactly as the latest official notice describes**, only while an ash cloud is actually reported.
 
-It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, adds **official alert levels from the USGS, the Icelandic Met Office and the Japan Meteorological Agency**, the **official volcanic ash areas for aviation (SIGMETs)** worldwide, **earthquakes** from the USGS, **tsunami warnings** from NOAA and BMKG and the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account. Optionally, with a free NASA FIRMS key, **satellite hotspots** show glowing lava at the summits.
+It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, adds **official alert levels from the USGS, the Icelandic Met Office and the Japan Meteorological Agency**, the **official volcanic ash areas for aviation (SIGMETs)** worldwide, **earthquakes** from the USGS, **tsunami warnings** from NOAA and BMKG and the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account. Optionally, with a free NASA FIRMS key, **satellite hotspots** show glowing lava at the summits and **wildfires** around your home burn on the globe and on a zoomable regional map.
 
 ## Screenshots
 
@@ -60,6 +60,7 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 - **Earthquakes** of the last 7 days as rings, orange near a volcano, fresh ones pulse
 - **Tsunami warnings:** official bulletins of NOAA (PTWC, NTWC) and BMKG InaTEWS roll out as waves from the epicentre, in the colour of the alert (warning, watch, advisory, information), with a banner in the compact card
 - **Satellite hotspots** (optional, free NASA FIRMS key): VIIRS thermal anomalies at the summit glow on the ground, with radiative power in MW
+- **Wildfires** (same key): satellite fire detections of the last 48 hours around your home, grouped into fires (5 km cells near home, 50 km further away), as animated flames on the globe and in their own **wildfire card** with a zoomable NASA map, your places and the nearest fires
 - **Replay:** one button plays the eruptions and ash clouds of the last 90 days (VONA, Indonesia) on the globe
 - **Wikipedia link** for every volcano, matched by its Smithsonian number through Wikidata
 - **Live cameras:** the newest image of the official observatory camera right in the info panel (USGS, GeoNet), links to the camera pages of the Japan Meteorological Agency and to the MAGMA Indonesia CCTV
@@ -83,6 +84,7 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 | Earthquakes near volcanoes | USGS earthquakes of the last 7 days within 30 km of a volcano | magnitude, depth, distance, volcano |
 | Tsunami alerts | tsunami warnings, watches and advisories in force | highest level, nearest distance from home, every bulletin with region, magnitude, sources and link |
 | Thermal anomalies (with FIRMS key) | volcanoes with satellite hotspots at the summit in the last 48 h | hotspots, radiative power (MW), satellite pass, distance |
+| Wildfires (with FIRMS key) | fires around home seen in the last 24 h | nearest distance and direction, strongest fire (MW), fires within 25 / 100 / 300 km, total power, the 25 nearest fires with position, power, detections and last pass |
 | Ash near `<place>` (binary) | on when ash comes within the radius of a place | nearest distance, volcano, kind (SIGMET, plume or drift track), hours until the drift track arrives, official |
 | Data sources (diagnostic) | ok, degraded or waiting | status of every feed, cache sizes, Earth imagery |
 
@@ -117,9 +119,10 @@ All settings are done in the UI and can be changed later under **Configure**:
 | Volcanoes to watch | empty | Comma separated names, e.g. `Semeru, Merapi, Anak Krakatau, Lewotobi`. Each one gets its own sensor. |
 | Places to watch for ash | Home | Zones, for example your home and your airports. Each gets an "Ash near ..." sensor. |
 | Ash warning radius | 150 km | Distance around each place. |
-| NASA FIRMS map key | empty | Optional. A free key from [firms.modaps.eosdis.nasa.gov/api/map_key](https://firms.modaps.eosdis.nasa.gov/api/map_key/) switches on the satellite hotspots (VIIRS) at volcanoes with a raised alert level, an eruption or ash. Checked every 3 hours. |
+| NASA FIRMS map key | empty | Optional. A free key from [firms.modaps.eosdis.nasa.gov/api/map_key](https://firms.modaps.eosdis.nasa.gov/api/map_key/) switches on the satellite hotspots (VIIRS) at volcanoes with a raised alert level, an eruption or ash (checked every 3 hours) and the wildfires. |
+| Wildfire radius around home | 1500 km | Wildfires within this distance of your home location, checked every hour (needs the FIRMS key). 0 switches them off, 20000 covers the world. |
 
-Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), official alert levels every hour, ash SIGMETs and earthquakes every 15 minutes, tsunami bulletins every 5 minutes, satellite hotspots every 3 hours (with a FIRMS key), the volcano catalogue and the Wikipedia links once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
+Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), official alert levels every hour, ash SIGMETs and earthquakes every 15 minutes, tsunami bulletins every 5 minutes, satellite hotspots every 3 hours and wildfires every hour (with a FIRMS key), the volcano catalogue and the Wikipedia links once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
 
 ## The card
 
@@ -145,6 +148,7 @@ ash_areas: true        # official volcanic ash areas (SIGMETs)
 quakes: true           # earthquakes of the last 7 days
 tsunami: true          # tsunami warnings as rolling waves
 thermal: true          # satellite hotspots (needs a NASA FIRMS key in the integration)
+fires: true            # wildfires around home (same key)
 replay: true           # replay button for the last 90 days
 cams: true             # live camera images of the observatories
 labels: true
@@ -194,6 +198,36 @@ text_lines: 3             # long reports: lines before "Show more" (0 = always t
 count: 5
 title: Volcano Watch
 ```
+
+### Wildfire card
+
+`custom:magmarium-fire-card` watches the fires around your home on a zoomable map: NASA Blue Marble relief, or with the 🛰 button today's VIIRS satellite image (you can see the smoke when there are no clouds). Every fire glows in the colour of its power, the strongest get the animated flame; tap one for distance, power, satellite passes and a link to the NASA FIRMS map. Below the map: a tile per place with its fires, an optional air quality tile and the nearest fires.
+
+```yaml
+type: custom:magmarium-fire-card
+title: Wildfire Watch
+home_name: Home
+height: 260
+hours: 48                 # fires of the last hours on the map (the list and the tiles use 24 h)
+list: 5                   # nearest fires below the map (0 hides the list)
+map: relief               # or satellite
+air_quality_entity: sensor.pm2_5   # optional PM2.5 sensor as a tile
+places:                   # optional: a tile per place, fires within radius_km
+  - name: Old Town
+    lat: 50.08
+    lon: 14.42
+    radius_km: 30
+views:                    # map buttons; lat / lon default to home
+  - name: Near
+    radius_km: 40
+  - name: Region
+    radius_km: 150
+  - name: Wide
+    radius_km: 900
+view: 1                   # the button shown first
+```
+
+The map tiles come straight from NASA GIBS in your browser; Home Assistant only downloads the fire detections.
 
 ### Region buttons
 
@@ -269,6 +303,7 @@ Pick the "Erupting volcanoes" and the "Tsunami alerts" sensors, a radius for eru
 | Rings | USGS earthquakes of the last 7 days; orange within 30 km of a volcano. Small volcanic quakes, for example in Indonesia, are often not in this catalogue. |
 | Coloured waves from a point | a tsunami bulletin in force (NOAA PTWC / NTWC, BMKG InaTEWS): red warning or threat, orange watch, yellow advisory, blue information statement. The waves only mark the event, they are not a forecast of the tsunami. |
 | Hot glow on the ground | satellite hotspots of the last 48 hours within 5 km of the summit (NASA FIRMS, VIIRS); brighter with more radiative power |
+| Flames and glowing embers | wildfires around home of the last 48 hours (NASA FIRMS, VIIRS): yellow under 8 MW, amber 8 to 30, orange 30 to 100, red above 100 MW. Older fires fade. Hotspots within 5 km of a volcano count as volcanic heat, not as wildfires. Clouds can hide fires, small or short fires can be missed. |
 | Glowing crater and lava | a VONA in the last 24 hours that reports an eruption, or eruptive activity in the current weekly report |
 | Ash plume | a VONA in the last 4 hours with an ash cloud: height above the summit, drift direction, ash colour and intensity are taken from the notice. Exercise notices (*VA EXERCISE*) are ignored. |
 | Light ash plume | ash plumes mentioned in the current weekly report |
@@ -293,7 +328,9 @@ A star on GitHub, a bug report or a screenshot of your dashboard helps just as m
 - Volcanic ash SIGMETs: [AviationWeather.gov](https://aviationweather.gov) (NOAA Aviation Weather Center)
 - Earthquakes: [USGS Earthquake Hazards Program](https://earthquake.usgs.gov)
 - Tsunami warnings: [NOAA Tsunami Warning Centers](https://www.tsunami.gov) (PTWC, NTWC) and [BMKG InaTEWS](https://inatews.bmkg.go.id)
-- Satellite hotspots: [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) (VIIRS, LANCE / EOSDIS)
+- Satellite hotspots and wildfires: [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) (VIIRS, LANCE / EOSDIS)
+- Wildfire map tiles: [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) (Blue Marble shaded relief, VIIRS NOAA-20 corrected reflectance, coastlines)
+- Tsunami and wildfire icons: designed for Magmarium by mb26-dev
 - Wikipedia links: [Wikidata](https://www.wikidata.org) (CC0)
 - Volcano cameras: [USGS Volcano Hazards Program AshCam](https://avo-volcview.wr.usgs.gov/ashcam-gui/webcam.html), [GeoNet / GNS Science](https://www.geonet.org.nz/volcano/cameras), [Japan Meteorological Agency](https://www.data.jma.go.jp/vois/data/obs/volcam/volcam.php), [MAGMA Indonesia](https://magma.esdm.go.id/v1/gunung-api/cctv)
 - Winds aloft: [Open-Meteo](https://open-meteo.com) (CC BY 4.0)
