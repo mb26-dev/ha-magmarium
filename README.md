@@ -90,6 +90,7 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 | Earthquakes near volcanoes | USGS earthquakes of the last 7 days within 30 km of a volcano | magnitude, depth, distance, volcano |
 | Tsunami alerts | tsunami warnings, watches and advisories in force | highest level, nearest distance from home, every bulletin with region, magnitude, sources and link |
 | Thermal anomalies (with FIRMS key) | volcanoes with satellite hotspots at the summit in the last 48 h | hotspots, radiative power (MW), satellite pass, distance |
+| Earthquakes near home | earthquakes within 2000 km of home in the last 7 days (USGS) | quakes of the last 24 h, strongest and nearest (24 h and 7 days), the 15 newest with magnitude, depth, distance and direction |
 | Wildfires (with FIRMS key) | fires around home seen in the last 24 h | nearest distance and direction, strongest fire (MW), fires within 25 / 100 / 300 km, total power, the 25 nearest fires with position, power, detections and last pass |
 | Ash near `<place>` (binary) | on when ash comes within the radius of a place | nearest distance, volcano, kind (SIGMET, plume or drift track), hours until the drift track arrives, official |
 | Data sources (diagnostic) | ok, degraded or waiting | status of every feed, cache sizes, Earth imagery |
@@ -235,6 +236,38 @@ view: 1                   # the button shown first
 
 The map tiles come straight from NASA GIBS in your browser; Home Assistant only downloads the fire detections.
 
+### Earthquake card
+
+`custom:magmarium-quake-card` shows the earthquakes around your home on the same map: rings and colours by magnitude, seismic waves for the last 24 hours, the shaking marker on the strongest ones, tsunami bulletins in force with their waves and a banner. Tiles for the last 24 hours, the strongest and the nearest quake, tsunami status and your places; a list of the newest quakes with distance, direction and depth.
+
+```yaml
+type: custom:magmarium-quake-card
+title: Earthquake Watch
+radius_km: 2000           # quakes within this distance of home
+days: 7                   # up to 7 (USGS: M4.5+ for 7 days, M2.5+ for the last day)
+min_magnitude: 0
+list: 5
+places: []                # like the wildfire card
+views:                    # like the wildfire card
+  - name: Near
+    radius_km: 300
+  - name: Region
+    radius_km: 900
+```
+
+### Lightning card
+
+`custom:magmarium-lightning-card` turns the strikes of the [Blitzortung](https://github.com/mrk-its/homeassistant-blitzortung) integration into a live radar around your home: range rings and a sweep, fresh strikes flash and send a shock wave, the newest get the lightning marker, older ones fade. Tiles for the last 10 minutes and the last hour, the nearest strike and the storm trend (approaching, steady or moving away), and a list of the newest strikes. Needs the Blitzortung integration; nothing else is downloaded.
+
+```yaml
+type: custom:magmarium-lightning-card
+title: Lightning Watch
+radius_km: 100            # the radius set in the Blitzortung integration
+minutes: 120              # its time window
+distance_entity: sensor.home_lightning_distance   # optional
+places: []
+```
+
 ### Region buttons
 
 A second row of buttons flies the globe to a volcanic region. Each button shows how many volcanoes there are currently active, with a dot in the colour of the highest alert level; quiet regions are dimmed. Once a region is zoomed in, the quiet volcanoes are labelled too.
@@ -336,7 +369,8 @@ A star on GitHub, a bug report or a screenshot of your dashboard helps just as m
 - Tsunami warnings: [NOAA Tsunami Warning Centers](https://www.tsunami.gov) (PTWC, NTWC) and [BMKG InaTEWS](https://inatews.bmkg.go.id)
 - Satellite hotspots and wildfires: [NASA FIRMS](https://firms.modaps.eosdis.nasa.gov) (VIIRS, LANCE / EOSDIS)
 - Wildfire map tiles: [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) (Blue Marble shaded relief, VIIRS NOAA-20 corrected reflectance, coastlines)
-- Tsunami and wildfire icons: designed for Magmarium by mb26-dev
+- Tsunami, wildfire, earthquake and lightning icons: designed for Magmarium by mb26-dev
+- Lightning strikes: [Blitzortung.org](https://www.blitzortung.org) through the Blitzortung integration of Home Assistant
 - Wikipedia links: [Wikidata](https://www.wikidata.org) (CC0)
 - Volcano cameras: [USGS Volcano Hazards Program AshCam](https://avo-volcview.wr.usgs.gov/ashcam-gui/webcam.html), [GeoNet / GNS Science](https://www.geonet.org.nz/volcano/cameras), [Japan Meteorological Agency](https://www.data.jma.go.jp/vois/data/obs/volcam/volcam.php), [MAGMA Indonesia](https://magma.esdm.go.id/v1/gunung-api/cctv)
 - Winds aloft: [Open-Meteo](https://open-meteo.com) (CC BY 4.0)

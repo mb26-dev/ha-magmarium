@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0b5 - 2026-11-18
+
+- **New earthquake card** `custom:magmarium-quake-card`: the earthquakes around home on the zoomable NASA map, coloured and sized by magnitude, seismic waves for the last 24 hours, an animated quake marker on the strongest, tsunami bulletins with waves and a banner, tiles and a list with distance, direction and depth
+- **New lightning card** `custom:magmarium-lightning-card`: the strikes of the Blitzortung integration as a live radar around home with range rings, a sweep, flashing fresh strikes, the lightning marker on the newest and the storm trend
+- New sensor **Earthquakes near home**: quakes within 2000 km in the last 7 days, with the last 24 hours, the strongest and the nearest
+- The three map cards share one map engine (`magmarium-maps.js`), the wildfire card works as before
+- New earthquake and lightning icons by mb26-dev
+
 ## 0.2.0b4 - 2026-11-18
 
 - Satellite hotspots and wildfires also come from **VIIRS NOAA-21**. S-NPP currently delivers no data, so before this only NOAA-20 was used
