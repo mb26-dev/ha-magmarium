@@ -6,7 +6,7 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 
-const VERSION = "0.2.0b1";
+const VERSION = "0.2.0b2";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -70,6 +70,8 @@ function destPoint(lat, lon, km, bearingDeg) {
 function tsunamiTitle(e) {
   return TSUNAMI_NAMES[e.level] || "Tsunami";
 }
+// animated tsunami marker (artwork by mb26-dev), served next to the card
+const TSUNAMI_ICON = new URL(`./tsunami-marker.svg?v=${VERSION}`, import.meta.url).href;
 const REPLAY_HOURS_PER_SECOND = 12;
 const OFFICIAL_NAMES = { usgs: "USGS", imo: "Icelandic Met Office", jma: "Japan Meteorological Agency" };
 const CAM_SOURCES = { usgs: "USGS", geonet: "GeoNet", jma: "JMA", magma: "MAGMA Indonesia" };
@@ -1741,14 +1743,21 @@ class MagmariumCard extends HTMLElement {
           ctx.stroke();
         }
         if (pr.z > 0.03) {
+          if (!this._tsuImg) {
+            this._tsuImg = new Image();
+            this._tsuImg.src = TSUNAMI_ICON;
+          }
+          const s = clamp(44 * Math.pow(zoom, 0.35), 38, 76) * smooth(0.03, 0.2, pr.z);
           const pulse = 0.6 + 0.4 * Math.sin(t * 4);
-          ctx.fillStyle = `rgba(${col},${0.9 * pulse})`;
+          // ground ring in the colour of the alert, the wave marker on top of it
+          ctx.strokeStyle = `rgba(${col},${0.95 * pulse})`;
+          ctx.lineWidth = 2.4;
           ctx.beginPath();
-          ctx.arc(pr.x, pr.y, 5, 0, Math.PI * 2);
-          ctx.fill();
-          // the label is drawn last, above the volcano names
-          tsuLabels.push({ x: pr.x, y: pr.y, col, text: `${tsunamiTitle(e).toUpperCase()}${e.mag ? ` M${e.mag}` : ""}` });
-          hits.push({ kind: "tsunami", v: e, x: pr.x, y: pr.y, r: 14 });
+          ctx.ellipse(pr.x, pr.y, s * 0.42, s * 0.13, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          // marker and label are drawn last, above the volcanoes and their names
+          tsuLabels.push({ x: pr.x, y: pr.y, s, col, text: `${tsunamiTitle(e).toUpperCase()}${e.mag ? ` M${e.mag}` : ""}` });
+          hits.push({ kind: "tsunami", v: e, x: pr.x, y: pr.y - s * 0.3, r: s * 0.5 });
         }
       }
     }
@@ -1890,9 +1899,19 @@ class MagmariumCard extends HTMLElement {
       }
     }
     for (const l of tsuLabels) {
+      const img = this._tsuImg;
+      if (img && img.complete && img.naturalWidth) {
+        const bob = Math.sin(t * 3) * l.s * 0.02;
+        ctx.drawImage(img, l.x - l.s / 2, l.y - l.s * 0.75 + bob, l.s, l.s);
+      } else {
+        ctx.fillStyle = `rgb(${l.col})`;
+        ctx.beginPath();
+        ctx.arc(l.x, l.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.font = "700 12px system-ui, sans-serif";
       const w = ctx.measureText(l.text).width + 16;
-      const y = l.y - 30;
+      const y = l.y - l.s * 0.55 - 14;
       ctx.fillStyle = "rgba(10,10,14,.82)";
       ctx.strokeStyle = `rgba(${l.col},.9)`;
       ctx.lineWidth = 1.2;
@@ -2154,6 +2173,7 @@ const VC_STYLE = `
   .msg { opacity: .75; padding: 12px 14px; }
   .tsu { margin: 6px 10px 2px; padding: 8px 12px; border-radius: 12px; font-size: 12px; line-height: 1.35; background: rgba(var(--tc),.16); border: 1px solid rgba(var(--tc),.55); }
   .tsu b { color: rgb(var(--tc)); }
+  .tsu .tsi { width: 34px; height: 34px; float: left; margin: -4px 8px 0 -4px; }
   .tsu a { color: rgb(var(--tc)); font-weight: 600; text-decoration: none; }
   .tsu .muted { display: block; }
 `;
@@ -2384,7 +2404,7 @@ class MagmariumVolcanoCard extends HTMLElement {
       const col = TSUNAMI_COLORS[e.level] || TSUNAMI_COLORS[2];
       const dist = home && Number.isFinite(home[0]) ? distKm(home[0], home[1], e.lat, e.lon) : null;
       const bits = [e.region, e.mag ? `M${e.mag}` : "", rel(e.time), dist != null ? `${fmtInt(Math.round(dist))} km from home` : ""].filter(Boolean);
-      return `<div class="tsu" style="--tc:${col}">🌊 <b>${esc(tsunamiTitle(e))}</b> · ${esc(bits.join(" · "))}`
+      return `<div class="tsu" style="--tc:${col}"><img class="tsi" src="${TSUNAMI_ICON}" alt=""><b>${esc(tsunamiTitle(e))}</b> · ${esc(bits.join(" · "))}`
         + `<span class="muted">${esc((e.sources || []).join(", "))}${e.url ? ` · <a href="${esc(e.url)}" target="_blank" rel="noopener">bulletin</a>` : ""}</span></div>`;
     }).join("");
   }
