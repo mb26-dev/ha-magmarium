@@ -98,7 +98,11 @@ MONTH_NAMES = [
     "july", "august", "september", "october", "november", "december",
 ]
 VONA_MAX_PAGES_FIRST = 3
-VONA_KEEP = 600
+VONA_KEEP = 1500
+# older VONA pages are read a few per refresh until VONA_MAX_AGE_DAYS are covered,
+# so every volcano gets its newest notice even when it is weeks old
+VONA_BACKFILL_PAGES = 3
+VONA_BACKFILL_MAX_PAGE = 150
 
 # feed key -> (source that enables it, refresh minutes)
 FEEDS = {
@@ -136,6 +140,7 @@ class MagmariumData:
         self.catalog: list[list[Any]] = []
         self.levels: list[dict[str, Any]] = []
         self.vonas: list[dict[str, Any]] = []
+        self.vona_backfill: dict[str, Any] = {"page": VONA_MAX_PAGES_FIRST + 1, "done": False}
         self.weekly: list[dict[str, Any]] = []
         self.weekly_published: str | None = None
         # winds aloft per volcano id, and the set of places they were fetched for
@@ -174,6 +179,7 @@ class MagmariumData:
             self.catalog = stored.get("catalog") or []
             self.levels = stored.get("levels") or []
             self.vonas = stored.get("vonas") or []
+            self.vona_backfill = stored.get("vona_backfill") or {"page": VONA_MAX_PAGES_FIRST + 1, "done": False}
             self.weekly = stored.get("weekly") or []
             self.weekly_published = stored.get("weekly_published")
             self.wind = stored.get("wind") or {}
@@ -191,6 +197,7 @@ class MagmariumData:
             "catalog": self.catalog,
             "levels": self.levels,
             "vonas": self.vonas,
+            "vona_backfill": self.vona_backfill,
             "weekly": self.weekly,
             "weekly_published": self.weekly_published,
             "wind": self.wind,
@@ -406,12 +413,63 @@ class MagmariumData:
             if page_no >= pages and (newest_known is None or oldest <= newest_known):
                 break
             page_no += 1
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=VONA_MAX_AGE_DAYS)).isoformat()
+        found += await self._backfill_vona(known, cutoff)
         if found:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=VONA_MAX_AGE_DAYS)).isoformat()
-            merged = [v for v in self.vonas + found if v["issued"] >= cutoff]
-            merged.sort(key=lambda v: v["issued"], reverse=True)
-            self.vonas = merged[:VONA_KEEP]
+            self.vonas = self._merge_vonas(self.vonas + found, cutoff)
             _LOGGER.debug("%s new VONA notices", len(found))
+
+    async def _backfill_vona(self, known: set[str], cutoff: str) -> list[dict[str, Any]]:
+        """Read a few older VONA pages per refresh until the notices reach back to the cutoff.
+
+        New notices push the old ones to later pages, so a page can repeat notices
+        already known, but none is skipped.
+        """
+        state = self.vona_backfill
+        if state.get("done"):
+            return []
+        found: list[dict[str, Any]] = []
+        for _ in range(VONA_BACKFILL_PAGES):
+            page_no = int(state.get("page") or VONA_MAX_PAGES_FIRST + 1)
+            if page_no > VONA_BACKFILL_MAX_PAGE:
+                state["done"] = True
+                break
+            try:
+                page = await self._get(f"{MAGMA_VONA_URL}?page={page_no}")
+                items = await self.hass.async_add_executor_job(parse_vona_list, page)
+            except Exception as err:  # noqa: BLE001
+                # the newest notices are already in; try the older ones again next time
+                _LOGGER.debug("Older VONA page %s not loaded: %s", page_no, err)
+                break
+            if not items:
+                state["done"] = True
+                break
+            for item in items:
+                item = {**item, "issued": item["issued"].isoformat()}
+                if self._vona_key(item) not in known:
+                    known.add(self._vona_key(item))
+                    found.append(item)
+            state["page"] = page_no + 1
+            if min(i["issued"] for i in items).isoformat() < cutoff:
+                state["done"] = True
+                break
+        if state.get("done"):
+            _LOGGER.info("Older VONA notices loaded")
+        return found
+
+    @staticmethod
+    def _merge_vonas(vonas: list[dict[str, Any]], cutoff: str) -> list[dict[str, Any]]:
+        """Notices of the last VONA_MAX_AGE_DAYS, and always the newest notice of every volcano."""
+        vonas = sorted(vonas, key=lambda v: v["issued"], reverse=True)
+        newest: set[str] = set()
+        keep: list[dict[str, Any]] = []
+        for v in vonas:
+            name = (v.get("name") or "").lower()
+            first = name not in newest
+            newest.add(name)
+            if first or (v["issued"] >= cutoff and len(keep) < VONA_KEEP):
+                keep.append(v)
+        return keep
 
     @staticmethod
     def _vona_key(v: dict[str, Any]) -> str:

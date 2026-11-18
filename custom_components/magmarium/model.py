@@ -169,6 +169,14 @@ def build_volcanoes(
                 "color": v.get("color"),
                 "url": v.get("url"),
                 "source": "MAGMA Indonesia (PVMBG)",
+                # what this notice reported, also when it is too old for the live eruption and ash
+                "eruption": bool(info["eruption"]),
+                "ash": {
+                    "top_m": info["top_m"],
+                    "above_summit_m": info["above_summit_m"],
+                    "toward": info["toward"],
+                    "toward_deg": info["toward_deg"],
+                } if info["ash"] else None,
             }
             vol["aviation_color"] = v.get("color")
             if latest_vona is None:
