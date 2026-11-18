@@ -169,7 +169,24 @@ async def main() -> None:
             await page.wait_for_timeout(4000)
             await shot(page, "replay")
 
-        # 7 the compact volcano cards: one volcano, the detailed list with a report opened, the most active
+        # 7 wildfires of the last 24 hours on the globe, where they burn the most (real NASA FIRMS data)
+        focus = await page.evaluate("() => window.__fireFocus")
+        if focus:
+            await light(page, True)
+            await fly(page, focus["lat"], focus["lon"], 5.2)
+            await shot(page, "wildfires")
+
+        # 8 the wildfire card with the same fires: relief map with places and list, satellite image of the region
+        if focus:
+            fire = await browser.new_page(viewport={"width": 1000, "height": 900}, device_scale_factor=SCALE)
+            fire.on("pageerror", lambda e: errors.append(str(e)))
+            await fire.goto(URL.replace("render.html", "fire.html"))
+            await fire.wait_for_function("window.__cards && window.__cards.every((c) => c.shadowRoot && c.shadowRoot.querySelector('.wrap'))", timeout=60000)
+            await fire.wait_for_timeout(9000)  # map tiles load from NASA GIBS
+            await fire.locator("#wrap").screenshot(path=str(OUT / "fire-card.jpg"), type="jpeg", quality=86)
+            print("wrote docs/images/fire-card.jpg")
+
+        # 9 the compact volcano cards: one volcano, the detailed list with a report opened, the most active
         cards = await browser.new_page(viewport={"width": 1440, "height": 900}, device_scale_factor=SCALE)
         cards.on("pageerror", lambda e: errors.append(str(e)))
         await cards.goto(URL.replace("render.html", "cards.html"))

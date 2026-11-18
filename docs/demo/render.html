@@ -15,6 +15,11 @@
 // Used by docs/demo/render.py to create the screenshots in docs/images.
 const payload = await (await fetch("payload.json")).json();
 const history = await (await fetch("history.json")).json();
+// real wildfires of the last 24 hours, when the workflow could download them (fires.py)
+const fireResp = await fetch("fires.json").catch(() => null);
+const fireData = fireResp && fireResp.ok ? await fireResp.json() : null;
+if (fireData) Object.assign(payload, { fires_enabled: true, fires: fireData.fires, fires_meta: fireData.fires_meta });
+window.__fireFocus = fireData ? fireData.focus : null;
 
 // freeze the clock at the time of the snapshot so ages and day / night match it
 const snapshot = payload.updated * 1000;

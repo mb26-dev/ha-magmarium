@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Magmarium wildfire card</title>
+<style>
+  html, body { margin: 0; background: #141414; }
+  #wrap { display: grid; grid-template-columns: repeat(2, 440px); gap: 24px; align-items: start; padding: 14px; width: max-content; }
+</style>
+</head>
+<body>
+<div id="wrap"></div>
+<script type="module">
+// Renders the wildfire card with real fires of the last 24 hours (docs/demo/fires.json,
+// made by fires.py from the public NASA FIRMS files). Used by render.py for docs/images/fire-card.jpg.
+const payload = await (await fetch("payload.json")).json();
+const fires = await (await fetch("fires.json")).json();
+Object.assign(payload, { fires_enabled: true, fires: fires.fires, fires_meta: fires.fires_meta, home: [fires.focus.lat, fires.focus.lon] });
+
+const snapshot = payload.updated * 1000;
+const start = performance.now();
+Date.now = () => snapshot + (performance.now() - start);
+
+const json = (data) => new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } });
+const hass = {
+  config: { latitude: fires.focus.lat, longitude: fires.focus.lon, time_zone: "Asia/Bangkok" },
+  locale: { language: "en" },
+  states: {},
+  fetchWithAuth: async (url) => (url.includes("/volcanoes") ? json(payload) : new Response("{}", { status: 404 })),
+};
+
+await import("../../custom_components/magmarium/frontend/magmarium-card.js");
+const base = { title: "Wildfire Watch", home_name: fires.focus.name, places: fires.places, height: 300 };
+const configs = [
+  { ...base, view: 1, views: [{ name: "Near", radius_km: 60 }, { name: "Region", radius_km: 220 }, { name: "Wide", radius_km: 900 }] },
+  { ...base, map: "satellite", list: 0, view: 0, views: [{ name: "Region", radius_km: 450 }, { name: "South East Asia", lat: 8, lon: 106, radius_km: 1900 }] },
+];
+window.__cards = configs.map((cfg) => {
+  const card = document.createElement("magmarium-fire-card");
+  card.setConfig(cfg);
+  document.getElementById("wrap").appendChild(card);
+  card.hass = hass;
+  return card;
+});
+</script>
+</body>
+</html>
