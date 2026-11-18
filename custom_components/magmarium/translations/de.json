@@ -8,13 +8,15 @@
           "sources": "Datenquellen",
           "watched_volcanoes": "Beobachtete Vulkane",
           "places": "Orte für die Aschewarnung",
-          "ash_radius_km": "Radius der Aschewarnung"
+          "ash_radius_km": "Radius der Aschewarnung",
+          "firms_map_key": "NASA FIRMS Map-Key (optional)"
         },
         "data_description": {
-          "sources": "MAGMA Indonesia: offizielle Warnstufen und VONA-Meldungen (Aschewolken) für Indonesien. Wochenbericht: weltweite Aktivität (Smithsonian / USGS). Offizielle Warnstufen: USGS (USA), Icelandic Met Office, JMA (Japan). Asche-SIGMETs: offizielle Aschegebiete für die Luftfahrt, weltweit. Erdbeben: USGS.",
+          "sources": "MAGMA Indonesia: offizielle Warnstufen und VONA-Meldungen (Aschewolken) für Indonesien. Wochenbericht: weltweite Aktivität (Smithsonian / USGS). Offizielle Warnstufen: USGS (USA), Icelandic Met Office, JMA (Japan). Asche-SIGMETs: offizielle Aschegebiete für die Luftfahrt, weltweit. Erdbeben: USGS. Tsunami-Warnungen: NOAA (PTWC, NTWC) und BMKG InaTEWS.",
           "watched_volcanoes": "Namen wie in den Quellen, z. B. Semeru, Merapi, Anak Krakatau, Lewotobi, Etna.",
           "places": "Zonen wie Zuhause oder deine Flughäfen. Jede bekommt einen Binärsensor, der angeht, wenn eine Aschewolke, ein offizielles Aschegebiet (SIGMET) oder eine simulierte Driftspur in den Radius kommt.",
-          "ash_radius_km": "Abstand um jeden Ort, in km."
+          "ash_radius_km": "Abstand um jeden Ort, in km.",
+          "firms_map_key": "Kostenloser Schlüssel von firms.modaps.eosdis.nasa.gov/api/map_key. Damit zeigt Magmarium Satelliten-Hotspots (Wärmeanomalien, VIIRS) an den Gipfeln aktiver Vulkane. Leer lassen, um das abzuschalten."
         }
       }
     },
@@ -34,12 +36,14 @@
           "sources": "Datenquellen",
           "watched_volcanoes": "Beobachtete Vulkane",
           "places": "Orte für die Aschewarnung",
-          "ash_radius_km": "Radius der Aschewarnung"
+          "ash_radius_km": "Radius der Aschewarnung",
+          "firms_map_key": "NASA FIRMS Map-Key (optional)"
         },
         "data_description": {
           "watched_volcanoes": "Mit Komma getrennt, z. B. Semeru, Merapi, Krakatau. Jeder bekommt einen eigenen Sensor.",
           "places": "Zonen wie Zuhause oder deine Flughäfen. Jede bekommt einen Binärsensor, der angeht, wenn eine Aschewolke, ein offizielles Aschegebiet (SIGMET) oder eine simulierte Driftspur in den Radius kommt.",
-          "ash_radius_km": "Abstand um jeden Ort, in km."
+          "ash_radius_km": "Abstand um jeden Ort, in km.",
+          "firms_map_key": "Kostenloser Schlüssel von firms.modaps.eosdis.nasa.gov/api/map_key. Damit zeigt Magmarium Satelliten-Hotspots (Wärmeanomalien, VIIRS) an den Gipfeln aktiver Vulkane. Leer lassen, um das abzuschalten."
         }
       }
     },
@@ -87,6 +91,12 @@
       },
       "volcanic_quakes": {
         "name": "Erdbeben an Vulkanen"
+      },
+      "tsunami": {
+        "name": "Tsunami-Warnungen"
+      },
+      "thermal": {
+        "name": "Wärmeanomalien"
       }
     },
     "binary_sensor": {

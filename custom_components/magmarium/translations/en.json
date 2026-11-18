@@ -8,13 +8,15 @@
           "sources": "Data sources",
           "watched_volcanoes": "Volcanoes to watch",
           "places": "Places to watch for ash",
-          "ash_radius_km": "Ash warning radius"
+          "ash_radius_km": "Ash warning radius",
+          "firms_map_key": "NASA FIRMS map key (optional)"
         },
         "data_description": {
-          "sources": "MAGMA Indonesia: official alert levels and VONA notices (ash clouds) for Indonesia. Weekly report: worldwide activity (Smithsonian / USGS). Official alert levels: USGS (US), Icelandic Met Office, JMA (Japan). Ash SIGMETs: official volcanic ash areas for aviation, worldwide. Earthquakes: USGS.",
+          "sources": "MAGMA Indonesia: official alert levels and VONA notices (ash clouds) for Indonesia. Weekly report: worldwide activity (Smithsonian / USGS). Official alert levels: USGS (US), Icelandic Met Office, JMA (Japan). Ash SIGMETs: official volcanic ash areas for aviation, worldwide. Earthquakes: USGS. Tsunami warnings: NOAA (PTWC, NTWC) and BMKG InaTEWS.",
           "watched_volcanoes": "Names as used by the sources, e.g. Semeru, Merapi, Anak Krakatau, Lewotobi, Etna.",
           "places": "Zones such as Home or your airports. Each gets a binary sensor that turns on when an ash cloud, an official ash area (SIGMET) or a simulated drift track comes within the radius.",
-          "ash_radius_km": "Distance around each place, in km."
+          "ash_radius_km": "Distance around each place, in km.",
+          "firms_map_key": "Free key from firms.modaps.eosdis.nasa.gov/api/map_key. With it, Magmarium shows satellite hotspots (thermal anomalies, VIIRS) at the summits of active volcanoes. Leave empty to switch this off."
         }
       }
     },
@@ -34,12 +36,14 @@
           "sources": "Data sources",
           "watched_volcanoes": "Volcanoes to watch",
           "places": "Places to watch for ash",
-          "ash_radius_km": "Ash warning radius"
+          "ash_radius_km": "Ash warning radius",
+          "firms_map_key": "NASA FIRMS map key (optional)"
         },
         "data_description": {
           "watched_volcanoes": "Comma separated, e.g. Semeru, Merapi, Krakatau. Each gets its own sensor.",
           "places": "Zones such as Home or your airports. Each gets a binary sensor that turns on when an ash cloud, an official ash area (SIGMET) or a simulated drift track comes within the radius.",
-          "ash_radius_km": "Distance around each place, in km."
+          "ash_radius_km": "Distance around each place, in km.",
+          "firms_map_key": "Free key from firms.modaps.eosdis.nasa.gov/api/map_key. With it, Magmarium shows satellite hotspots (thermal anomalies, VIIRS) at the summits of active volcanoes. Leave empty to switch this off."
         }
       }
     },
@@ -87,6 +91,12 @@
       },
       "volcanic_quakes": {
         "name": "Earthquakes near volcanoes"
+      },
+      "tsunami": {
+        "name": "Tsunami alerts"
+      },
+      "thermal": {
+        "name": "Thermal anomalies"
       }
     },
     "binary_sensor": {
