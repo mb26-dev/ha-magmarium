@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 - 2026-11-18
+
+- New compact card `custom:magmarium-volcano-card` for the home dashboard: one volcano with the animated cone, ash plume, ejecta and a day or night sky, alert level, eruption, ash cloud, wind, earthquakes, SIGMETs, live camera and the latest report; or the most active volcanoes as a list with small animated cones; everything can be switched on and off in the visual editor
+- Optional `navigation_path` opens your globe dashboard when the card is tapped
+
 ## 0.1.2 - 2026-11-18
 
 - Fixed: on dashboards with hass-swipe-navigation, dragging the globe with a finger switched to another view instead of turning the globe

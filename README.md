@@ -33,11 +33,17 @@ It starts with the best volcano data there is for Indonesia, the official alert 
 
 ![The whole globe with every active volcano](docs/images/globe.jpg)
 
-<sub>Screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery.</sub>
+**Compact volcano card for the home dashboard:** an animated volcano with its ash plume, or a list of the most active volcanoes, without the globe
+
+![Compact volcano cards: an erupting volcano with ash plume, a volcano at night and a list of the most active volcanoes](docs/images/volcano-card.jpg)
+
+<sub>The globe screenshots are rendered by a GitHub workflow from a real data snapshot (`docs/demo`) with the actual card and NASA imagery.</sub>
 
 ## Features
 
 **Lovelace card** `custom:magmarium-card` (installed and registered automatically)
+
+- **Compact volcano card** `custom:magmarium-volcano-card` for the home dashboard: one animated volcano or a list of the most active volcanoes, without the globe
 
 - Globe with real NASA imagery: Blue Marble by day, city lights by night, live day and night terminator
 - **Daylight mode** (default): the whole visible globe is lit, nothing lies in the dark; the sun / moon button switches to the real day and night
@@ -136,6 +142,39 @@ replay: true           # replay button for the last 90 days
 cams: true             # live camera images of the observatories
 labels: true
 ```
+
+### Compact volcano card
+
+For a quick look on your home dashboard there is a second card without the globe: `custom:magmarium-volcano-card`. Add it from the card picker ("Magmarium Volcano") and pick what to show in the visual editor.
+
+The top shows the volcano as on the globe, animated: glowing crater and lava while it erupts, the ash plume drifting with the reported direction or the wind, glowing ejecta after a fresh VONA, pulse rings at warning level, and a day or night sky for the local time at the volcano.
+
+```yaml
+type: custom:magmarium-volcano-card
+volcano: auto             # auto = the most active volcano right now, or an id such as gvp:263300
+navigation_path: /dashboard-volcanoes/globe   # optional: open the globe on tap
+# everything is shown by default, switch off what you don't need:
+scene: true               # animated volcano
+eruption: true
+ash: true
+sigmets: true
+quakes: true
+wind: true
+camera: true              # live camera image of the observatory
+notice: true              # latest VONA or weekly report
+links: true
+```
+
+The most active volcanoes as a list, each with its own small animated cone:
+
+```yaml
+type: custom:magmarium-volcano-card
+volcano: list
+count: 5
+title: Most active
+```
+
+Or your own volcanoes: `volcanoes: [gvp:263300, gvp:282080]` (the editor lists every volcano in the current reports).
 
 ### Region buttons
 
