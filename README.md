@@ -183,6 +183,7 @@ type: custom:magmarium-volcano-card
 volcano: list
 sort: distance            # nearest first, from your home location (default: activity)
 details: true             # eruption, ash cloud, SIGMETs, quakes and report text per row
+text_lines: 3             # long reports: lines before "Show more" (0 = always the full text)
 count: 5
 title: Volcano Watch
 ```

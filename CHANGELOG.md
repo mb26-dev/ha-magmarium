@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6 - 2026-11-18
+
+- Volcano list with `details: true`: long reports (weekly report) are shortened to 3 lines with a "Show more" / "Show less" link that opens the full text right in the card; tapping it never opens the globe
+- New option `text_lines` (visual editor: "Lines of long reports"): how many lines a long report shows before "Show more", `0` always shows the full text; VONA notices are always shown in full
+
 ## 0.1.5 - 2026-11-18
 
 - Older VONA notices are now loaded too: after the start, a few older pages are read per refresh until the last 120 days are covered, and the newest notice of every volcano is always kept. Volcanoes whose last VONA is weeks old (e.g. an eruption with an ash cloud in August) show it again instead of only the weekly report
