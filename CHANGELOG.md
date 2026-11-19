@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0b8 - 2026-11-19
+
+- Globe: strong and fresh earthquakes (M4.5+ of the last 48 hours, M6+ of the week) now show the animated earthquake marker with a ring and the magnitude in the colour of the earthquake card, like the wildfire and tsunami markers; smaller quakes stay small rings
+
 ## 0.2.0b7 - 2026-11-19
 
 - A DNS lookup that times out is tried again (twice, after a short pause) before a feed counts as failed. Name servers far away, for example the Icelandic Met Office seen from Asia, often answer only after the first lookup gave up
