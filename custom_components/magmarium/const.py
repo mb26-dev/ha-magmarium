@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "magmarium"
-VERSION = "0.2.0b6"
+VERSION = "0.2.0b7"
 
 CONF_SOURCES = "sources"
 CONF_WATCHED = "watched_volcanoes"
@@ -63,6 +63,17 @@ GVP_WEEKLY_MINUTES = 6 * 60
 CATALOG_DAYS = 30
 BACKOFF_MINUTES = 60
 SOURCE_DOWN_HOURS = 24
+# single feeds by name, for repair issues that concern only one part of a source
+FEED_LABELS = {
+    "magma_levels": "MAGMA Indonesia (alert levels)",
+    "magma_vona": "MAGMA Indonesia (VONA)",
+    "gvp_weekly": "Smithsonian GVP weekly report",
+    "usgs": "USGS (US)",
+    "imo": "Icelandic Met Office",
+    "jma": "JMA (Japan)",
+    "sigmet": "Volcanic ash SIGMETs",
+    "quakes": "USGS earthquakes",
+}
 # winds aloft for the ash drift simulation (Open-Meteo)
 WIND_MINUTES = 60
 OFFICIAL_MINUTES = 60

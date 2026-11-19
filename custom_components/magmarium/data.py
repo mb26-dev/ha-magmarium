@@ -30,6 +30,7 @@ from .const import (
     EARTH_DIR,
     EARTH_NIGHT_URL,
     ERUPTION_HOURS,
+    FEED_LABELS,
     GVP_CATALOG_URL,
     GVP_CATALOG_URL_FULL,
     GVP_WEEKLY_MINUTES,
@@ -116,6 +117,19 @@ from .parsing import haversine_km, parse_gvp_catalog, parse_gvp_weekly, parse_le
 from .wind import build_url as wind_url, parse_response as parse_wind, points_key, wind_for, wind_points
 
 _LOGGER = logging.getLogger(__name__)
+
+DNS_RETRIES = 2
+DNS_RETRY_SECONDS = 8
+
+
+def _is_dns_error(err: BaseException) -> bool:
+    """True when a request failed while resolving the host name."""
+    dns_cls = getattr(aiohttp, "ClientConnectorDNSError", None)
+    if dns_cls is not None and isinstance(err, dns_cls):
+        return True
+    text = str(err).lower()
+    return "dns" in text or "name resolution" in text or "temporary failure in name" in text
+
 
 USER_AGENT = f"HomeAssistant-Magmarium/{VERSION} (+https://github.com/mb26-dev/ha-magmarium)"
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=60)
@@ -293,20 +307,29 @@ class MagmariumData:
         _LOGGER.warning("Magmarium feed %s failed, next attempt in %s minutes: %s", feed, BACKOFF_MINUTES, err)
 
     async def _get(self, url: str, binary: bool = False) -> Any:
+        """GET a feed. A DNS lookup that times out is tried again after a short pause:
+        the first answer from a far away name server often arrives only after the
+        resolver gave up, and the second lookup then comes from the cache."""
         session = async_get_clientsession(self.hass)
-        try:
-            async with session.get(
-                url,
-                timeout=HTTP_TIMEOUT,
-                headers={"User-Agent": USER_AGENT, "Accept-Language": "en"},
-            ) as resp:
-                if resp.status == 204:
-                    return b"" if binary else ""
-                if resp.status != 200:
-                    raise FeedError(f"HTTP {resp.status}")
-                return await (resp.read() if binary else resp.text())
-        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-            raise FeedError(str(err) or err.__class__.__name__) from err
+        for attempt in range(DNS_RETRIES + 1):
+            try:
+                async with session.get(
+                    url,
+                    timeout=HTTP_TIMEOUT,
+                    headers={"User-Agent": USER_AGENT, "Accept-Language": "en"},
+                ) as resp:
+                    if resp.status == 204:
+                        return b"" if binary else ""
+                    if resp.status != 200:
+                        raise FeedError(f"HTTP {resp.status}")
+                    return await (resp.read() if binary else resp.text())
+            except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+                if attempt < DNS_RETRIES and _is_dns_error(err):
+                    _LOGGER.debug("Magmarium: DNS lookup for %s failed, trying again: %s", url, err)
+                    await asyncio.sleep(DNS_RETRY_SECONDS * (attempt + 1))
+                    continue
+                raise FeedError(str(err) or err.__class__.__name__) from err
+        raise FeedError("DNS lookup failed")
 
     async def async_refresh(self, force: bool = False) -> bool:
         """Download every feed that is due. Returns True when anything changed."""
@@ -677,13 +700,17 @@ class MagmariumData:
         now = time.time()
         for source in REPAIR_SOURCES:
             feeds = [f for f, (s, _) in FEEDS.items() if s == source]
-            since = [
-                float((self.feed_state.get(f) or {}).get("failing_since") or 0)
-                for f in feeds
+            down = [
+                f for f in feeds
+                if self._enabled(f)
+                and (since := float((self.feed_state.get(f) or {}).get("failing_since") or 0))
+                and now - since >= SOURCE_DOWN_HOURS * 3600
             ]
-            failing = [s for s in since if s]
             issue_id = f"source_down_{source}"
-            if source in self.sources and failing and now - min(failing) >= SOURCE_DOWN_HOURS * 3600:
+            if source in self.sources and down:
+                # name only the feeds that are really down, not the whole source group
+                names = [FEED_LABELS[f] for f in down if f in FEED_LABELS]
+                label = ", ".join(names) if names and len(names) < len(feeds) else SOURCE_LABELS[source]
                 ir.async_create_issue(
                     self.hass,
                     DOMAIN,
@@ -691,7 +718,7 @@ class MagmariumData:
                     is_fixable=False,
                     severity=ir.IssueSeverity.WARNING,
                     translation_key="source_down",
-                    translation_placeholders={"source": SOURCE_LABELS[source], "hours": str(SOURCE_DOWN_HOURS)},
+                    translation_placeholders={"source": label, "hours": str(SOURCE_DOWN_HOURS)},
                 )
             else:
                 ir.async_delete_issue(self.hass, DOMAIN, issue_id)
