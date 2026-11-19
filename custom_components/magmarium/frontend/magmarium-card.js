@@ -7,7 +7,7 @@ import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./ma
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 import { defineMapCards } from "./magmarium-maps.js";
 
-const VERSION = "0.2.0b8";
+const VERSION = "0.2.0b9";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -1080,7 +1080,16 @@ class MagmariumCard extends HTMLElement {
   }
 
   _tap(x, y) {
-    const hit = this._hitTest(x, y);
+    // several markers under the finger (a volcano and a quake on top of each other):
+    // every further tap on the same spot moves on to the next one
+    const cands = this._hitList(x, y);
+    let hit = cands[0] || null;
+    const last = this._lastTap;
+    if (hit && this._selected && last && Math.hypot(last.x - x, last.y - y) < 14 && cands.length > 1) {
+      const i = cands.findIndex((c) => this._sameHit(c, this._selected));
+      if (i >= 0) hit = cands[(i + 1) % cands.length];
+    }
+    this._lastTap = { x, y };
     if (hit) {
       this._selected = hit;
       this._renderInfo();
@@ -1095,21 +1104,41 @@ class MagmariumCard extends HTMLElement {
   }
 
   _hitTest(x, y) {
-    // volcanoes with a report win over quiet catalogue volcanoes nearby
-    let best = null;
-    for (const kind of ["volcano", "quake", "catalog"]) {
-      for (const h of this._hits || []) {
-        if (h.kind !== kind) continue;
-        const d = Math.hypot(h.x - x, h.y - y);
-        if (d <= h.r && (!best || d < best.d)) best = { ...h, d };
-      }
-      if (best) return best;
+    return this._hitList(x, y)[0] || null;
+  }
+
+  /** everything under a tap, the marker hit most squarely first (tsunami alerts always first), ash areas last */
+  _hitList(x, y) {
+    const order = { tsunami: 0, volcano: 1, quake: 1, fire: 1, catalog: 2 };
+    const seen = new Map();
+    for (const h of this._hits || []) {
+      if (!(h.kind in order)) continue;
+      const d = Math.hypot(h.x - x, h.y - y);
+      if (d > h.r) continue;
+      // one entry per marker (a quake has its ring and its icon as hit areas)
+      const key = `${h.kind}:${this._hitKey(h)}`;
+      const prev = seen.get(key);
+      if (!prev || d < prev.d) seen.set(key, { ...h, d });
     }
+    // closeness relative to the size of the marker: a tap right on a small quake ring
+    // wins over the edge of the large volcano tap area around it
+    const list = [...seen.values()].sort((a, b) => order[a.kind] - order[b.kind] || a.d / a.r - b.d / b.r);
     // official ash areas are large: a tap anywhere inside opens them
     for (const h of this._hits || []) {
-      if (h.kind === "sigmet" && pointInPoly(x, y, h.pts)) return h;
+      if (h.kind === "sigmet" && pointInPoly(x, y, h.pts)) list.push(h);
     }
-    return null;
+    return list;
+  }
+
+  _hitKey(h) {
+    const v = h.v || {};
+    return v.id ?? v.url ?? v.number ?? `${v.lat},${v.lon},${v.time ?? v.ms ?? ""}`;
+  }
+
+  _sameHit(a, b) {
+    if (!a || !b || a.kind !== b.kind) return false;
+    if (a.v === b.v) return true;
+    return this._hitKey(a) === this._hitKey(b);
   }
 
   // ------------------------------------------------------------------ info panel
@@ -2017,6 +2046,8 @@ class MagmariumCard extends HTMLElement {
       ctx.beginPath();
       ctx.ellipse(it.pr.x, it.pr.y, it.s * 0.42 * ring, it.s * 0.14 * ring, 0, 0, Math.PI * 2);
       ctx.stroke();
+      // the icon stands above the epicentre: it is a tap target of its own
+      hits.push({ kind: "quake", v: it.q, x: it.pr.x, y: it.pr.y - it.s * 0.4, r: it.s * 0.42 });
       if (img && img.complete && img.naturalWidth) {
         // the marker stands on its foot (y = 96 of 128) and trembles a little
         const shake = Math.sin(t * 40 + it.q.lat) * 0.8;
