@@ -7,7 +7,7 @@ import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./ma
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 import { defineMapCards } from "./magmarium-maps.js";
 
-const VERSION = "0.2.0b6";
+const VERSION = "0.2.0b8";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -74,6 +74,15 @@ function tsunamiTitle(e) {
 // animated tsunami marker (artwork by mb26-dev), served next to the card
 const TSUNAMI_ICON = new URL(`./tsunami-marker.svg?v=${VERSION}`, import.meta.url).href;
 const FIRE_ICON = new URL(`./fire-marker.svg?v=${VERSION}`, import.meta.url).href;
+const QUAKE_ICON = new URL(`./quake-marker.svg?v=${VERSION}`, import.meta.url).href;
+/** earthquake colour by magnitude (same scale as the earthquake card) */
+function quakeRgb(m) {
+  if (m >= 7) return "217,70,239";
+  if (m >= 6) return "239,68,68";
+  if (m >= 5) return "249,115,22";
+  if (m >= 4) return "245,158,11";
+  return "250,204,21";
+}
 /** wildfire colour by radiative power (MW) */
 const fireRgb = (mw) => (mw >= 100 ? "239,68,68" : mw >= 30 ? "249,115,22" : mw >= 8 ? "245,158,11" : "250,204,21");
 const REPLAY_HOURS_PER_SECOND = 12;
@@ -1713,8 +1722,10 @@ class MagmariumCard extends HTMLElement {
     }
 
     // earthquakes of the last 7 days: rings, volcanic ones in orange, fresh ones pulse
+    const quakeIcons = [];
     if (!rp && this._config.quakes !== false && this._filter === "all") {
       const nowMs = Date.now();
+      const quakeCand = [];
       for (const q of this._quakes || []) {
         const pr = this._project(q.p, G, R);
         if (pr.z <= 0.03 || pr.x < -20 || pr.x > W + 20 || pr.y < -20 || pr.y > H + 20) continue;
@@ -1737,6 +1748,23 @@ class MagmariumCard extends HTMLElement {
           ctx.stroke();
         }
         hits.push({ kind: "quake", v: q, x: pr.x, y: pr.y, r: Math.max(8, r0 + 3) });
+        // the strong and fresh ones get the shaking quake marker
+        const sel = this._selected && this._selected.kind === "quake" && this._selected.v === q;
+        if (sel || (q.mag >= 4.5 && ageH < 48) || (q.mag >= 6 && ageH < 7 * 24)) {
+          quakeCand.push({ q, pr, fade, sel, score: (sel ? 100 : 0) + q.mag * 2 - ageH / 24 });
+        }
+      }
+      const s = clamp(24 + zoom * 3, 28, 46);
+      const maxIcons = Math.round(clamp(zoom * 2, 3, 10));
+      quakeCand.sort((a, b) => b.score - a.score);
+      for (const it of quakeCand) {
+        if (quakeIcons.length >= maxIcons) break;
+        if (quakeIcons.some((o) => Math.hypot(o.pr.x - it.pr.x, o.pr.y - it.pr.y) < s * 0.8)) continue;
+        quakeIcons.push({ ...it, s });
+      }
+      if (quakeIcons.length && !this._quakeImg) {
+        this._quakeImg = new Image();
+        this._quakeImg.src = QUAKE_ICON;
       }
     }
 
@@ -1976,6 +2004,36 @@ class MagmariumCard extends HTMLElement {
       if (img && img.complete && img.naturalWidth) {
         const h = it.s * (1 + 0.05 * Math.sin(t * 9 + it.f.lat * 13));
         ctx.drawImage(img, it.pr.x - it.s / 2, it.pr.y - h * (115 / 128), it.s, h);
+      }
+      ctx.globalAlpha = 1;
+    }
+    for (const it of quakeIcons) {
+      const img = this._quakeImg;
+      const col = quakeRgb(it.q.mag);
+      const ring = 1 + 0.08 * Math.sin(t * 4 + it.q.lon * 5);
+      ctx.globalAlpha = Math.max(it.fade, 0.6);
+      ctx.strokeStyle = `rgba(${col},.95)`;
+      ctx.lineWidth = it.sel ? 2.4 : 1.8;
+      ctx.beginPath();
+      ctx.ellipse(it.pr.x, it.pr.y, it.s * 0.42 * ring, it.s * 0.14 * ring, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      if (img && img.complete && img.naturalWidth) {
+        // the marker stands on its foot (y = 96 of 128) and trembles a little
+        const shake = Math.sin(t * 40 + it.q.lat) * 0.8;
+        ctx.drawImage(img, it.pr.x - it.s / 2 + shake, it.pr.y - it.s * (96 / 128), it.s, it.s);
+      }
+      if (zoom >= 1.4 || it.sel) {
+        const text = `M${it.q.mag.toFixed(1)}`;
+        ctx.font = "700 10.5px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "rgba(5,8,12,.85)";
+        ctx.strokeText(text, it.pr.x, it.pr.y + it.s * 0.32);
+        ctx.fillStyle = `rgb(${col})`;
+        ctx.fillText(text, it.pr.x, it.pr.y + it.s * 0.32);
+        ctx.textAlign = "start";
+        ctx.textBaseline = "alphabetic";
       }
       ctx.globalAlpha = 1;
     }
