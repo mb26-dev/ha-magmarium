@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0b7 - 2026-11-19
+
+- A DNS lookup that times out is tried again (twice, after a short pause) before a feed counts as failed. Name servers far away, for example the Icelandic Met Office seen from Asia, often answer only after the first lookup gave up
+- The "not reachable" repair now names only the feeds that are really down (for example "Icelandic Met Office") instead of every source of the group
+
 ## 0.2.0b6 - 2026-11-18
 
 - New earthquakes arrive within 2 minutes: besides the full update every 15 minutes, Magmarium checks the small USGS feed of the day every 2 minutes, so sensors and automations react right away
