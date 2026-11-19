@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0b9 - 2026-11-19
+
+- Globe: when markers lie on top of each other (a volcano and an earthquake, for example), every further tap on the same spot opens the next one; before, the volcano always won and the quake could not be opened
+- Globe: wildfire and tsunami markers open their details when tapped (the details existed, but the tap did not reach them)
+- Globe: the earthquake marker itself is a tap target, not only its epicentre below it
+
 ## 0.2.0b8 - 2026-11-19
 
 - Globe: strong and fresh earthquakes (M4.5+ of the last 48 hours, M6+ of the week) now show the animated earthquake marker with a ring and the magnitude in the colour of the earthquake card, like the wildfire and tsunami markers; smaller quakes stay small rings
