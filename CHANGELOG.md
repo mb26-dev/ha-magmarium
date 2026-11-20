@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1b2 - 2026-11-20
+
+Security fixes from the HACS review:
+
+- **The NASA FIRMS map key never reaches the log any more.** It is part of the FIRMS request path, and the DNS retry logged the full URL at debug level. Logs now show only the host, and every error text is masked before it is logged or stored
+- **Links in the cards accept only http and https.** Links taken from scraped pages and feeds (MAGMA VONA and level reports, USGS and IMO notices, NOAA bulletins, USGS earthquake pages, camera pages) are checked in the parsers and again in the cards; anything else, such as a `javascript:` URL, is dropped
+- README: installation now starts with the HACS search
+
 ## 0.2.1b1 - 2026-11-20
 
 - **Eco mode for wall tablets:** a leaf button on the globe switches all Magmarium cards on that device to 15 frames per second, normal pixel density, a lighter Earth image and fewer ash particles. Remembered per browser, so a wall tablet can run eco while the desktop stays on full quality. New card option `performance: auto | full | eco`; `auto` (default) switches to eco by itself on weak devices or when the globe cannot keep up
