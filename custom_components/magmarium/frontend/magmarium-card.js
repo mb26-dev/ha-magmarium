@@ -6,8 +6,9 @@
 import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./magmarium-earth.js";
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 import { defineMapCards } from "./magmarium-maps.js";
+import { ecoMode, setEco, reportSlow, onEcoChange, storedEco, perf } from "./magmarium-perf.js";
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1b1";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -103,6 +104,7 @@ const ICONS = {
   unfull: "M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z",
   history: "M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z",
   play: "M8 5v14l11-7z",
+  leaf: "M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75C7 8 17 8 17 8z",
   pause: "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
   close: "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
 };
@@ -244,6 +246,7 @@ const STYLE = `
     background: rgba(12,14,20,.66); color: #eee; display: flex; align-items: center; justify-content: center; cursor: pointer;
     padding: 0; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
   .controls button.on { border-color: rgba(255,171,74,.8); color: #ffab4a; }
+  .controls button.eco.on { border-color: rgba(120,220,140,.8); color: #7ee08a; }
   .controls svg, .info .x svg { width: 18px; height: 18px; fill: currentColor; }
   .info { position: absolute; top: 74px; right: 54px; width: 300px; max-height: calc(100% - 96px); overflow-y: auto;
     background: rgba(10,12,18,.82); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; padding: 12px 14px;
@@ -321,6 +324,7 @@ class MagmariumCard extends HTMLElement {
       replay: true,
       cams: true,
       labels: true,
+      performance: "auto",
       ...(config || {}),
     };
     if (this._stage) this._stage.style.height = `${this._height()}px`;
@@ -377,6 +381,7 @@ class MagmariumCard extends HTMLElement {
             <button class="world" title="Whole globe">${svg(ICONS.globe)}</button>
             <button class="light" title="Daylight or real day and night">${svg(ICONS.sun)}</button>
             <button class="rot" title="Rotate">${svg(ICONS.rotate)}</button>
+            <button class="eco" title="Eco mode for wall tablets">${svg(ICONS.leaf)}</button>
             <button class="hist" title="Replay the last 90 days">${svg(ICONS.history)}</button>
             <button class="full" title="Fullscreen">${svg(ICONS.full)}</button>
           </div>
@@ -444,6 +449,11 @@ class MagmariumCard extends HTMLElement {
       this._showLight();
       this._earthDirty = true;
     });
+    this._eco = ecoMode(this._config.performance);
+    this._ecoBtn = $(".eco");
+    this._showEco();
+    this._ecoBtn.addEventListener("click", () => setEco(!this._eco));
+    this._ecoOff = onEcoChange(() => this._applyEco());
     this._rotBtn = $(".rot");
     this._rotBtn.classList.toggle("on", this._rotate);
     this._rotBtn.addEventListener("click", () => {
@@ -495,6 +505,10 @@ class MagmariumCard extends HTMLElement {
 
   connectedCallback() {
     if (this._built) {
+      if (!this._ecoOff && this._ecoBtn) {
+        this._ecoOff = onEcoChange(() => this._applyEco());
+        this._applyEco();
+      }
       this._ro?.observe(this._stage);
       this._io?.observe(this._stage);
       if (this._hass) {
@@ -507,6 +521,8 @@ class MagmariumCard extends HTMLElement {
 
   disconnectedCallback() {
     this._visible = false;
+    this._ecoOff?.();
+    this._ecoOff = null;
     if (this._raf) cancelAnimationFrame(this._raf);
     this._raf = null;
     this._io?.disconnect();
@@ -626,7 +642,7 @@ class MagmariumCard extends HTMLElement {
     if (!r.width || !r.height) return;
     this._w = r.width;
     this._h = r.height;
-    this._dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this._dpr = Math.min(window.devicePixelRatio || 1, perf(this._eco).maxDpr);
     const fx = this._cFx;
     fx.width = Math.round(this._w * this._dpr);
     fx.height = Math.round(this._h * this._dpr);
@@ -1485,9 +1501,11 @@ class MagmariumCard extends HTMLElement {
 
   _frameStep(ts) {
     const dt = Math.min(0.06, Math.max(0, (ts - this._last) / 1000));
-    // about 30 frames per second are plenty and keep wall panels cool
-    if (ts - (this._lastDraw || 0) < 31) return;
+    // about 30 frames per second are plenty and keep wall panels cool, 15 in eco mode
+    const P = perf(this._eco);
+    if (ts - (this._lastDraw || 0) < P.frameMs) return;
     this._lastDraw = ts;
+    const work0 = performance.now();
     this._last = ts;
     this._t += dt;
     const v = this._view;
@@ -1535,12 +1553,12 @@ class MagmariumCard extends HTMLElement {
       this._earthDirty = true;
     }
     if (this._earthDirty) {
-      this._renderEarth(interacting ? 0.5 : 1);
+      this._renderEarth(interacting ? P.earthMoving : P.earthScale);
       this._earthDirty = false;
       this._earthLow = interacting;
       if (interacting) this._hqAt = Math.max(this._hqAt, ts + 180);
     } else if (this._earthLow && ts >= this._hqAt && !interacting) {
-      this._renderEarth(1);
+      this._renderEarth(P.earthScale);
       this._earthLow = false;
     }
 
@@ -1555,6 +1573,35 @@ class MagmariumCard extends HTMLElement {
     for (const p of plumes.values()) p.step(dt);
     for (const e of ejecta.values()) e.step(dt, this._t);
     this._drawFx();
+    this._watchSpeed(performance.now() - work0);
+  }
+
+  /** auto mode: a globe that needs too long per frame switches to eco by itself */
+  _watchSpeed(ms) {
+    if (this._eco || storedEco() !== null) return;
+    const opt = String(this._config.performance || "auto").toLowerCase();
+    if (opt !== "auto") return;
+    this._speed = this._speed == null ? ms : this._speed * 0.95 + ms * 0.05;
+    this._frames = (this._frames || 0) + 1;
+    if (this._frames > 90 && this._speed > 28) reportSlow();
+  }
+
+  /** eco mode for weak wall tablets: switched by the leaf button or detected in auto mode */
+  _applyEco() {
+    const eco = ecoMode(this._config.performance);
+    if (eco === this._eco) return this._showEco();
+    this._eco = eco;
+    this._showEco();
+    this._resize();
+  }
+
+  _showEco() {
+    if (!this._ecoBtn) return;
+    this._ecoBtn.classList.toggle("on", !!this._eco);
+    const chosen = storedEco() !== null;
+    this._ecoBtn.title = this._eco
+      ? `Eco mode${chosen ? "" : " (automatic)"}: lighter animation for wall tablets. Tap for full quality`
+      : "Full quality. Tap for eco mode (lighter animation for wall tablets)";
   }
 
   /** daylight mode: the last choice in this browser, otherwise the card option */
@@ -1582,8 +1629,9 @@ class MagmariumCard extends HTMLElement {
   _renderEarth(quality) {
     if (!this._w) return;
     let scale = this._dpr * quality;
+    const maxPx = Math.min(MAX_EARTH_PIXELS, perf(this._eco).maxEarthPx);
     const px = this._w * this._h * scale * scale;
-    if (px > MAX_EARTH_PIXELS) scale *= Math.sqrt(MAX_EARTH_PIXELS / px);
+    if (px > maxPx) scale *= Math.sqrt(maxPx / px);
     const W = Math.max(1, Math.round(this._w * scale));
     const H = Math.max(1, Math.round(this._h * scale));
     const R = this._R() * (W / this._w);
@@ -1957,7 +2005,7 @@ class MagmariumCard extends HTMLElement {
       if (plume) {
         const dir = plume.dirDeg != null ? this._screenDir(v, G, plume.dirDeg) : null;
         const pzf = clamp(Math.pow(zoom, 0.5), 0.9, 3.0);
-        plume.draw(ctx, pr.x, craterY, s, pzf, dir, night, v.erupt, t, alpha, clamp(zoom / 2.5, 0.4, 2.4));
+        plume.draw(ctx, pr.x, craterY, s, pzf, dir, night, v.erupt, t, alpha, clamp(zoom / 2.5, 0.4, 2.4) * perf(this._eco).lod);
       }
     }
 
@@ -2125,6 +2173,19 @@ const EDITOR_SCHEMA = [
     ],
   },
   {
+    name: "performance",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "auto", label: "Automatic (eco on weak devices)" },
+          { value: "full", label: "Full quality" },
+          { value: "eco", label: "Eco (weak wall tablets)" },
+        ],
+      },
+    },
+  },
+  {
     type: "grid",
     name: "",
     schema: [
@@ -2154,6 +2215,7 @@ const EDITOR_LABELS = {
   labels: "Volcano names",
   show_all: "All known volcanoes",
   rotate: "Slow rotation",
+  performance: "Performance",
   daylight: "Daylight (whole globe lit)",
   weekly_ash: "Ash from the weekly report",
   wind_tracks: "Ash drift tracks (wind)",
@@ -2391,12 +2453,19 @@ class MagmariumVolcanoCard extends HTMLElement {
 
   connectedCallback() {
     if (this._hass && !this._timer) this._load();
+    if (!this._io) {
+      this._io = new IntersectionObserver((entries) => {
+        this._visible = entries.some((en) => en.isIntersecting);
+      });
+    }
+    this._io.observe(this);
     this._startLoop();
   }
 
   disconnectedCallback() {
     clearTimeout(this._timer);
     this._timer = null;
+    this._io?.disconnect();
     cancelAnimationFrame(this._raf);
     this._raf = null;
   }
@@ -2776,19 +2845,23 @@ class MagmariumVolcanoCard extends HTMLElement {
       const dt = this._last ? Math.min(0.1, (ts - this._last) / 1000) : 0.016;
       this._last = ts;
       this._t += dt;
-      // about 30 frames per second are plenty for a small card
+      // about 30 frames per second are plenty for a small card, 15 in eco mode;
+      // nothing is drawn while the card is hidden (another slide, other view, screen off)
       this._acc = (this._acc || 0) + dt;
-      if (this._acc >= 1 / 30) {
+      const eco = ecoMode(this._config.performance);
+      if (this._acc >= perf(eco).frameMs / 1000 && this._visible !== false && !document.hidden) {
+        const span = Math.min(0.1, this._acc);
         this._acc = 0;
-        for (const sc of this._scenes) this._drawScene(sc, dt);
-      }
+        this._eco = eco;
+        for (const sc of this._scenes) this._drawScene(sc, span);
+      } else if (this._acc > 0.1) this._acc = 0.1;
       this._raf = requestAnimationFrame(step);
     };
     this._raf = requestAnimationFrame(step);
   }
 
   _fit(cv) {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const dpr = Math.min(perf(this._eco).maxDpr, window.devicePixelRatio || 1);
     const w = cv.clientWidth, h = cv.clientHeight;
     if (!w || !h) return null;
     if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {

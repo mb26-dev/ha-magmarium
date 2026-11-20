@@ -8,6 +8,8 @@
  * an animated marker layer and a popup per item.
  */
 
+import { ecoMode, perf } from "./magmarium-perf.js";
+
 const R_EARTH = 6371;
 const GIBS = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best";
 const LAYERS = {
@@ -444,7 +446,7 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
       if (!this._mapEl) return;
       const r = this._mapEl.getBoundingClientRect();
       if (!r.width) return;
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const dpr = Math.min(perf(ecoMode(this._config?.performance)).maxDpr, window.devicePixelRatio || 1);
       this._w = r.width;
       this._h = r.height;
       this._dpr = dpr;
@@ -680,8 +682,8 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
       const step = (ts) => {
         this._raf = 0;
         if (!this.isConnected) return;
-        // about 30 frames per second are enough
-        if (ts - last >= 30 || this._fly) {
+        // about 30 frames per second are enough, 15 in eco mode
+        if (ts - last >= perf(ecoMode(this._config?.performance)).frameMs - 1 || this._fly) {
           last = ts;
           if (this._fly) {
             const f = this._fly;
