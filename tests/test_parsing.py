@@ -205,6 +205,18 @@ def test_tidy_notice():
     assert parsing.tidy_notice("Top around 6989 FT (2184 M) above sea level.") == "Top around 6989 FT (2184 M) above sea level."
 
 
+
+def test_safe_url():
+    """Links from scraped pages reach the cards: only http and https may pass."""
+    for bad in ("javascript:alert(1)", " JavaScript:alert(1)", "data:text/html,x", "vbscript:x", "", None, "https:///x"):
+        assert parsing.safe_url(bad) is None
+        assert parsing.safe_url(bad, parsing.MAGMA_BASE) is None
+    assert parsing.safe_url("https://magma.esdm.go.id/v1/vona/1") == "https://magma.esdm.go.id/v1/vona/1"
+    assert parsing.safe_url(" http://example.org/a ") == "http://example.org/a"
+    assert parsing.safe_url("/v1/vona/1") is None
+    assert parsing.safe_url("/v1/vona/1", parsing.MAGMA_BASE) == "https://magma.esdm.go.id/v1/vona/1"
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
