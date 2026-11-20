@@ -25,6 +25,16 @@ const FIRMS_MAP = "https://firms.modaps.eosdis.nasa.gov/map/";
 const DIRS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+/** links come from scraped pages and feeds: only plain http and https URLs are rendered */
+function safeUrl(value) {
+  try {
+    const u = new URL(String(value ?? "").trim());
+    return u.protocol === "http:" || u.protocol === "https:" ? u.href : "";
+  } catch (_err) {
+    return "";
+  }
+}
+
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const rgb = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 const hex = (c) => `rgb(${c.join(",")})`;
@@ -1180,7 +1190,7 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
         <div>${kmText(s.km)} km ${compass(s.brg)} of ${esc(this.homeName())}${near ? ` · ${Math.round(near.d)} km from ${esc(near.p.name)}` : ""}</div>
         <div class="m">depth ${s.depth != null ? `${Math.round(s.depth)} km` : "unknown"}${s.volcano ? ` · near the volcano ${esc(s.volcano)}` : ""}</div>
         <div class="m">${esc(this.time(s.ms))} (${ago(s.ms)})</div>
-        ${s.url ? `<div class="m"><a href="${esc(s.url)}" target="_blank" rel="noopener">USGS event page ↗</a></div>` : ""}`;
+        ${s.url ? `<div class="m"><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">USGS event page ↗</a></div>` : ""}`;
     }
 
     renderText(top) {
@@ -1209,7 +1219,7 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
       for (const e of (this._tsunami || []).slice(0, 2)) {
         const c = hex(TSUNAMI_COLORS[e.level] || TSUNAMI_COLORS[1]);
         html += `<div class="alert" style="--ac:${c}"><img src="${ICONS.tsunami}" alt=""><div><b>${TSUNAMI_NAMES[e.level] || "Tsunami"}</b> · ${esc(e.region || "")}${e.mag ? ` · M${e.mag}` : ""}<br>
-          <span style="opacity:.7">${Math.round(e.km)} km ${compass(bearing(this.home().lat, this.home().lon, e.lat, e.lon))} · ${esc((e.sources || []).join(", "))}${e.url ? ` · <a style="color:${c}" href="${esc(e.url)}" target="_blank" rel="noopener">bulletin</a>` : ""}</span></div></div>`;
+          <span style="opacity:.7">${Math.round(e.km)} km ${compass(bearing(this.home().lat, this.home().lon, e.lat, e.lon))} · ${esc((e.sources || []).join(", "))}${e.url ? ` · <a style="color:${c}" href="${esc(safeUrl(e.url))}" target="_blank" rel="noopener">bulletin</a>` : ""}</span></div></div>`;
       }
       const tiles = [];
       tiles.push(this.tile("Last 24 h", String(day.length), day.length ? `strongest M${Math.max(...day.map((s) => s.mag)).toFixed(1)}` : "quiet", { color: day.length ? col : "#7dd3c0", hot: !!hot }));
