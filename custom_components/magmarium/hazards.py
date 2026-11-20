@@ -11,7 +11,7 @@ import re
 from typing import Any
 import xml.etree.ElementTree as ET
 
-from .parsing import haversine_km
+from .parsing import haversine_km, safe_url
 
 # ------------------------------------------------------------------ tsunami
 
@@ -100,7 +100,7 @@ def parse_tsunami_atom(text: str, center: str) -> list[dict[str, Any]]:
         url = None
         for link in entry.findall("a:link", _NS):
             if link.get("rel") == "alternate" and link.get("href"):
-                url = link.get("href").strip()
+                url = safe_url(link.get("href"))
         out.append(
             {
                 "source": f"NOAA {center}",

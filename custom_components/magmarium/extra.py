@@ -18,7 +18,7 @@ import re
 from typing import Any
 from urllib.parse import quote, unquote
 
-from .parsing import haversine_km, normalize_name
+from .parsing import haversine_km, normalize_name, safe_url
 
 USGS_URL = "https://volcanoes.usgs.gov/hans-public/api/volcano/getMonitoredVolcanoes"
 USGS_NOTICE_PAGE = "https://volcanoes.usgs.gov/hans-public/"
@@ -96,7 +96,7 @@ def parse_usgs(text: str) -> list[dict[str, Any]]:
             "color": color if color in COLOR_LEVEL else None,
             "alert": f"Volcano Alert Level {alert.title()} · Aviation Color Code {color.title()} (USGS)",
             "time": _iso_from_unix(row.get("sent_unixtime")),
-            "url": row.get("notice_url") or USGS_NOTICE_PAGE,
+            "url": safe_url(row.get("notice_url")) or USGS_NOTICE_PAGE,
             "observatory": row.get("obs_fullname"),
         })
     return out
@@ -134,6 +134,7 @@ def parse_imo(page: str) -> list[dict[str, Any]]:
         url = html_lib.unescape(link.group(1)) if link else IMO_URL
         if url.startswith("?") or url.startswith("/"):
             url = "https://en.vedur.is" + (url if url.startswith("/") else "/earthquakes-and-volcanism/volcanoes/vona-notifications/" + url)
+        url = safe_url(url) or IMO_URL
         prev = seen.get(vid)
         if prev is None or issued.isoformat() > prev["time"]:
             seen[vid] = {
@@ -314,7 +315,7 @@ def parse_quakes(texts: list[str]) -> list[dict[str, Any]]:
                 "mag": round(mag, 1),
                 "time": datetime.fromtimestamp(t / 1000, tz=timezone.utc).isoformat(),
                 "place": p.get("place") or "",
-                "url": p.get("url") or "",
+                "url": safe_url(p.get("url")) or "",
             }
     quakes = sorted(seen.values(), key=lambda q: q["time"], reverse=True)
     return quakes[:QUAKE_MAX]

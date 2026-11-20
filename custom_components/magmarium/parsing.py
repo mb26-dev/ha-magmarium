@@ -12,12 +12,16 @@ import json
 import math
 import re
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 import xml.etree.ElementTree as ET
 
 # --------------------------------------------------------------------------- helpers
 
 _TAG = re.compile(r"<[^>]+>")
 _SPACE = re.compile(r"\s+")
+
+
+MAGMA_BASE = "https://magma.esdm.go.id/"
 
 
 def clean_text(value: str | None) -> str:
@@ -27,6 +31,29 @@ def clean_text(value: str | None) -> str:
     text = _TAG.sub(" ", value)
     text = html.unescape(text)
     return _SPACE.sub(" ", text).strip()
+
+
+def safe_url(value: Any, base: str | None = None) -> str | None:
+    """Return the link only when it is a plain http or https URL, else None.
+
+    Links come from scraped pages and feeds and end up in the cards. Anything
+    else (javascript:, data:, a broken value) is dropped, so a tap on a link can
+    never run code inside the Home Assistant frontend. A relative link is
+    resolved against base when one is given."""
+    if not isinstance(value, str):
+        return None
+    url = value.strip()
+    if not url:
+        return None
+    try:
+        if base and not urlsplit(url).scheme:
+            url = urljoin(base, url)
+        parts = urlsplit(url)
+    except ValueError:
+        return None
+    if parts.scheme.lower() not in ("http", "https") or not parts.netloc:
+        return None
+    return url
 
 
 def normalize_name(name: str) -> str:
@@ -193,7 +220,7 @@ def parse_vona_list(page: str) -> list[dict[str, Any]]:
         color_m = _COLOR_BTN.search(block)
         text_m = _TEXT.search(block)
         link_m = _LINK.search(block)
-        url = html.unescape(link_m.group(1)) if link_m else None
+        url = safe_url(html.unescape(link_m.group(1)), MAGMA_BASE) if link_m else None
         id_m = _VONA_ID.search(url or "")
         text = clean_text(text_m.group(1)) if text_m else ""
         text = tidy_notice(re.sub(r"\.{2,}$", ".", text))
@@ -248,7 +275,7 @@ def parse_level_page(page: str) -> list[dict[str, Any]]:
             "name": name,
             "province": province.strip() if sep else "",
             "level": level,
-            "url": url,
+            "url": safe_url(url, MAGMA_BASE),
         })
     return out
 

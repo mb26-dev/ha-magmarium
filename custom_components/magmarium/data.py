@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 import time
 from typing import Any
+from urllib.parse import urlsplit
 
 import aiohttp
 
@@ -297,7 +298,14 @@ class MagmariumData:
         st = self.feed_state.setdefault(feed, {})
         st.update({"last_ok": now, "last_attempt": now, "retry_after": 0, "error": None, "failing_since": None})
 
+    def _mask(self, text: str) -> str:
+        """Hide the NASA FIRMS map key: it is part of the request path and must never reach a log."""
+        if self.firms_key and text:
+            return text.replace(self.firms_key, "***")
+        return text
+
     def _fail(self, feed: str, now: float, err: str) -> None:
+        err = self._mask(err)
         st = self.feed_state.setdefault(feed, {})
         st["last_attempt"] = now
         st["error"] = err[:300]
@@ -325,10 +333,12 @@ class MagmariumData:
                     return await (resp.read() if binary else resp.text())
             except (aiohttp.ClientError, asyncio.TimeoutError) as err:
                 if attempt < DNS_RETRIES and _is_dns_error(err):
-                    _LOGGER.debug("Magmarium: DNS lookup for %s failed, trying again: %s", url, err)
+                    _LOGGER.debug(
+                        "Magmarium: DNS lookup for %s failed, trying again: %s", urlsplit(url).hostname, self._mask(str(err))
+                    )
                     await asyncio.sleep(DNS_RETRY_SECONDS * (attempt + 1))
                     continue
-                raise FeedError(str(err) or err.__class__.__name__) from err
+                raise FeedError(self._mask(str(err)) or err.__class__.__name__) from err
         raise FeedError("DNS lookup failed")
 
     async def async_refresh(self, force: bool = False) -> bool:
@@ -490,7 +500,7 @@ class MagmariumData:
                 if len(failures) >= 5 and not found:
                     raise FeedError("; ".join(failures[:5])) from err
         if failures:
-            _LOGGER.debug("Thermal anomalies not loaded for %s volcanoes: %s", len(failures), failures[:5])
+            _LOGGER.debug("Thermal anomalies not loaded for %s volcanoes: %s", len(failures), self._mask(str(failures[:5])))
         self.thermal = found
 
     async def _refresh_fires(self) -> None:
