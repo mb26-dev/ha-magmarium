@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0 - 2026-11-20
+
+Everything from the 0.2.0 betas in one release: Magmarium now covers what comes from the earth, not only volcanoes.
+
+- **Tsunami warnings** from NOAA (PTWC, NTWC) and BMKG InaTEWS: rolling waves from the epicentre on the globe, a banner in the cards and the sensor "Tsunami alerts"
+- **Earthquakes:** new card `custom:magmarium-quake-card` and sensor "Earthquakes near home"; new quakes arrive within 2 minutes; strong and fresh quakes get an animated marker on the globe
+- **Wildfires and satellite hotspots** (with a free NASA FIRMS key): new card `custom:magmarium-fire-card`, sensors "Wildfires" and "Thermal anomalies", glowing fires on the globe
+- **Ash clouds in the volcano list:** the animated plume of the globe above the volcano icon, drifting with the reported wind
+- **Blueprint** "Eruption or tsunami near you"
+- Globe: overlapping markers can all be opened (every further tap on the same spot opens the next one), wildfire and tsunami markers open their details
+- More robust sources: DNS lookups that time out are tried again, and the "not reachable" repair names only the feeds that are really down
+- The lightning card moved to [Sea State Forecast](https://github.com/mb26-dev/ha-sea-state)
+
 ## 0.2.0b10 - 2026-11-20
 
 - Volcano card, list: a volcano with an ash cloud now shows the animated ash plume of the globe above its icon, drifting with the reported wind. A cloud from an older VONA notice (outside the live window) is drawn fainter
