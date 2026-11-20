@@ -8,7 +8,7 @@ import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./
 import { defineMapCards } from "./magmarium-maps.js";
 import { ecoMode, setEco, reportSlow, onEcoChange, storedEco, perf } from "./magmarium-perf.js";
 
-const VERSION = "0.2.1b2";
+const VERSION = "0.2.1";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
