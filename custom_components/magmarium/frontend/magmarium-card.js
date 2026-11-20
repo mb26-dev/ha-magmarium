@@ -7,7 +7,7 @@ import { DEG, ecef, viewFrame, sunDirection, loadEarth, renderEarth } from "./ma
 import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./magmarium-art.js";
 import { defineMapCards } from "./magmarium-maps.js";
 
-const VERSION = "0.2.0b9";
+const VERSION = "0.2.0b10";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -2329,6 +2329,7 @@ const VC_STYLE = `
   .list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
   .row { display: grid; grid-template-columns: 46px minmax(0,1fr) auto; gap: 8px; align-items: center; padding: 2px 8px 2px 2px; border-radius: 10px; background: rgba(255,255,255,.04); }
   .row canvas { width: 46px; height: 46px; display: block; }
+  .row canvas.ash { width: 64px; height: 74px; margin: 0 -9px; }
   .row .n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row .n .muted { display: block; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row .m { text-align: right; white-space: nowrap; }
@@ -2467,6 +2468,32 @@ class MagmariumVolcanoCard extends HTMLElement {
     return p;
   }
 
+  /** ash for the icon of a list row: the live cloud, or the last reported one of the newest VONA */
+  _rowAsh(v) {
+    if (!this._show("ash")) return null;
+    if (v.ash) return { ash: v.ash, live: true };
+    const n = v.notice;
+    if (n && n.kind === "vona" && n.ash) return { ash: n.ash, live: false };
+    return null;
+  }
+
+  _rowPlume(v) {
+    const ra = this._rowAsh(v);
+    if (!ra) return null;
+    if (ra.live) return this._plumeFor(v);
+    // the last reported cloud, older than the live window: the same plume, but fainter
+    const ash = { source: "vona", intensity: "medium", ...ra.ash, strength: 0.45, elev: v.elev };
+    if (ash.toward_deg == null && v.wind && v.wind.toward_deg != null) ash.toward_deg = v.wind.toward_deg;
+    const key = `${v.id}:last`;
+    let p = this._plumes.get(key);
+    if (p) p.update(ash);
+    else {
+      p = new AshPlume(key, ash);
+      this._plumes.set(key, p);
+    }
+    return p;
+  }
+
   _ejectaFor(v) {
     const er = v.eruption;
     if (!(er && er.source === "vona" && (er.age_min ?? 9999) <= 360)) return null;
@@ -2509,7 +2536,8 @@ class MagmariumVolcanoCard extends HTMLElement {
       const where = [v.country, dist != null ? `${fmtInt(Math.round(dist))} km${details ? " from home" : ""}` : ""].filter(Boolean).join(" · ");
       const state = v.eruption ? (v.eruption.source === "vona" ? `Eruption ${rel(v.eruption.time)}` : "Erupting") : v.ash ? "Ash emission" : (v.weekly?.status || "");
       const badge = `<span class="badge" style="background:${LEVEL_COLORS[v.level] || LEVEL_COLORS[0]}">${esc((LEVEL_NAMES[v.level] || "Unknown").toUpperCase())}</span>`;
-      return `<div class="row${details ? " det" : ""}${this._config.navigation_path ? " nav" : ""}"><canvas data-i="${i}" width="92" height="92"></canvas>`
+      const ashy = !!this._rowAsh(v);
+      return `<div class="row${details ? " det" : ""}${this._config.navigation_path ? " nav" : ""}"><canvas data-i="${i}"${ashy ? ' class="ash"' : ""} width="${ashy ? 128 : 92}" height="${ashy ? 148 : 92}"></canvas>`
         + `<div class="n">${esc(v.local || v.name)}<span class="muted">${esc(where)}</span></div>`
         + (details
           ? this._rowDetails(v, badge)
@@ -2519,7 +2547,7 @@ class MagmariumVolcanoCard extends HTMLElement {
     this._body.innerHTML = `<div class="wrap">${this._brand()}${this._tsunamiBanner()}${rows.length ? `<div class="list">${rows.join("")}</div>` : `<div class="msg">None of these volcanoes is in the current reports.</div>`}</div>`;
     this._body.querySelectorAll(".row canvas").forEach((cv) => {
       const v = list[Number(cv.dataset.i)];
-      this._scenes.push({ kind: "icon", cv, v, erupt: eruptStrength(v), ej: this._ejectaFor(v) });
+      this._scenes.push({ kind: "icon", cv, v, erupt: eruptStrength(v), ej: this._ejectaFor(v), plume: this._rowPlume(v) });
     });
     if (this._config.navigation_path) this._body.querySelectorAll(".row").forEach((r) => r.addEventListener("click", () => this._navigate()));
     this._body.querySelectorAll(".more").forEach((btn) => btn.addEventListener("click", (ev) => {
@@ -2783,11 +2811,27 @@ class MagmariumVolcanoCard extends HTMLElement {
     ctx.clearRect(0, 0, w, h);
     if (sc.kind === "icon") {
       const s = 10;
-      const x = w / 2, y = h * 0.8;
+      // with an ash cloud the cone moves a little against the wind, so the cloud has room to drift
+      let dir = null;
+      if (sc.plume && sc.plume.dirDeg != null) {
+        const a = (sc.plume.dirDeg * Math.PI) / 180;
+        const dx = Math.sin(a), dy = -Math.cos(a) * 0.35;
+        const n = Math.hypot(dx, dy) || 1;
+        dir = [dx / n, dy / n];
+      }
+      const x = sc.plume && dir ? (dir[0] >= 0 ? w * 0.34 : w * 0.66) : w / 2;
+      const y = sc.plume ? h - w * 0.2 : h * 0.8;
       const night = 0.6;
       if (v.level >= 4 || (v.level >= 3 && sc.erupt > 0.5)) drawPulse(ctx, x, y, s * 0.8, v.level, t + (v.lat % 1), 0.9);
       drawVolcano(ctx, x, y, s, { level: v.level, erupting: sc.erupt, night, t, alpha: 1 });
       if (sc.ej) sc.ej.draw(ctx, x, y - s * 1.45, s * 0.8, night, 1);
+      if (sc.plume) {
+        // the same ash cloud as on the globe, scaled to fill the small sky above the cone
+        const craterY = y - s * 1.45;
+        const H0 = Math.min(130, 20 + sc.plume.km * 15);
+        const zf = clamp((craterY - 3) / H0, 0.2, 1.4);
+        sc.plume.draw(ctx, x, craterY, s, zf, dir, night, sc.erupt, t, 1.5, 0.9);
+      }
       return;
     }
     // sky, from day blue to a deep night with stars
