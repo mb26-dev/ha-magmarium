@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.2.1b2 - 2026-11-20
+## 0.2.1 - 2026-11-20
 
-Security fixes from the HACS review:
+Stable release with the eco mode for wall tablets from 0.2.1b1 and these security fixes from the HACS review:
 
 - **The NASA FIRMS map key never reaches the log any more.** It is part of the FIRMS request path, and the DNS retry logged the full URL at debug level. Logs now show only the host, and every error text is masked before it is logged or stored
 - **Links in the cards accept only http and https.** Links taken from scraped pages and feeds (MAGMA VONA and level reports, USGS and IMO notices, NOAA bulletins, USGS earthquake pages, camera pages) are checked in the parsers and again in the cards; anything else, such as a `javascript:` URL, is dropped
