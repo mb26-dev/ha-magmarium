@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0b10 - 2026-11-20
+
+- Volcano card, list: a volcano with an ash cloud now shows the animated ash plume of the globe above its icon, drifting with the reported wind. A cloud from an older VONA notice (outside the live window) is drawn fainter
+
 ## 0.2.0b9 - 2026-11-19
 
 - Globe: when markers lie on top of each other (a volcano and an earthquake, for example), every further tap on the same spot opens the next one; before, the volcano always won and the quake could not be opened
