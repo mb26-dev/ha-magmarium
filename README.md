@@ -20,6 +20,21 @@ Active volcanoes on a living globe for Home Assistant. Magmarium shows **every v
 
 It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, adds **official alert levels from the USGS, the Icelandic Met Office and the Japan Meteorological Agency**, the **official volcanic ash areas for aviation (SIGMETs)** worldwide, **earthquakes** from the USGS, **tsunami warnings** from NOAA and BMKG and the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account. Optionally, with a free NASA FIRMS key, **satellite hotspots** show glowing lava at the summits and **wildfires** around your home burn on the globe and on a zoomable regional map.
 
+## Worldwide, not only Indonesia
+
+Magmarium started with Indonesia, but it covers every active volcano on Earth. Where an observatory publishes its alert levels, Magmarium reads them directly:
+
+| Region | Official volcano data | Also |
+| --- | --- | --- |
+| **Indonesia** | MAGMA Indonesia (PVMBG): alert levels and VONA aviation notices | live cameras, BMKG earthquakes, InaTEWS tsunami bulletins |
+| **United States** (Alaska, Hawaii, Cascades, Yellowstone ...) | USGS Volcano Hazards Program: alert level and aviation colour code | USGS earthquakes, NOAA tsunami warnings (PTWC, NTWC), AVO live cameras |
+| **Iceland** | Icelandic Met Office (IMO): VONA notices and aviation colour code | |
+| **Japan** | Japan Meteorological Agency (JMA): volcanic warning levels | JMA live cameras |
+| **Italy** (Etna, Stromboli, Campi Flegrei ...) | Smithsonian / USGS Weekly Volcanic Activity Report | official ash SIGMETs for European airspace, earthquakes |
+| **Everywhere else** (Philippines, Kamchatka, Andes, Central America, PNG, New Zealand ...) | Smithsonian / USGS Weekly Volcanic Activity Report | official ash SIGMETs worldwide, earthquakes M4.5+, tsunami warnings, GeoNet cameras in New Zealand |
+
+Italy's own alert levels (INGV) are not read yet; Etna and Stromboli show up from the weekly report and the ash SIGMETs.
+
 ## Screenshots
 
 ![Magmarium: the volcanoes of Indonesia with their official alert levels](docs/images/indonesia.jpg)
@@ -163,7 +178,14 @@ fires: true            # wildfires around home (same key)
 replay: true           # replay button for the last 90 days
 cams: true             # live camera images of the observatories
 labels: true
+performance: auto      # auto, full or eco (see below)
 ```
+
+### Wall tablets: eco mode
+
+On weak wall tablets the animation can make the device warm or the dashboard sluggish. The **leaf button** on the globe switches to eco mode: 15 instead of 30 frames per second, normal instead of retina pixel density, a lighter Earth image and fewer ash particles. It looks the same from across the room. The choice is remembered **in that browser only**, so the wall tablet can run eco while your desktop stays on full quality, and all Magmarium cards on that device follow it.
+
+`performance: auto` (default) switches to eco by itself on touch devices with few CPU cores, on devices with little memory, or when the globe cannot keep up. `full` and `eco` set it for every device; the leaf button still overrides it per browser. All Magmarium cards also pause their animation when they are not visible (another slide, another view, screen off).
 
 ### Compact volcano card
 

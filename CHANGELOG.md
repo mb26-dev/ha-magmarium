@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1b1 - 2026-11-20
+
+- **Eco mode for wall tablets:** a leaf button on the globe switches all Magmarium cards on that device to 15 frames per second, normal pixel density, a lighter Earth image and fewer ash particles. Remembered per browser, so a wall tablet can run eco while the desktop stays on full quality. New card option `performance: auto | full | eco`; `auto` (default) switches to eco by itself on weak devices or when the globe cannot keep up
+- The compact volcano card pauses its animation while it is not visible (another slide, another view, screen off), like the globe and the map cards already did
+- README: which official sources cover which regions (Indonesia, United States, Iceland, Japan, Italy and the rest of the world)
+
 ## 0.2.0 - 2026-11-20
 
 Everything from the 0.2.0 betas in one release: Magmarium now covers what comes from the earth, not only volcanoes.
