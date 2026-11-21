@@ -72,3 +72,56 @@ def test_link():
     assert linked["gvp:263300"][0]["src"] == "magma"
     ruapehu = linked["gvp:241100"]
     assert len(ruapehu) == 3 and all(c["img"] for c in ruapehu)
+
+
+# structure of https://www.ct.ingv.it/sezioniesterne/webcam/WebcamEtna.php and WebcamEolie.php
+INGV_BOX = (
+    "<div class = 'box'> <div class = 'image'>  <a href= '{page}?Vulcano={code}'>"
+    "<img src = '{src}' width = '350' height = '260'></a></div><div class = 'text'>{code}</div></div>"
+)
+ETNA_BASE = "https://www.ct.ingv.it/sezioniesterne/webcam/WebcamEtna.php"
+EOLIE_BASE = "https://www.ct.ingv.it/sezioniesterne/webcam/WebcamEolie.php"
+INGV_NOW = 1795240000.0  # 2026-11-21 05:46 UTC
+
+
+def _ingv_page(page, rows):
+    return "".join(INGV_BOX.format(page=page, code=code, src=src) for code, src in rows)
+
+
+def test_ingv_cams():
+    etna = _ingv_page("Webcam.php", [
+        ("Ebt", "Nowork.jpg"),
+        ("Emv", "../../Dati/webcams/Emv/20261121/0500/Emv0114.jpg"),
+        ("Emot", "../../Dati/webcams/Emot/20261121/0500/Emot0114.jpg"),
+        ("Emov", "../../Dati/webcams/Emov/20261121/0500/Emov0114.jpg"),
+        ("Ecv", "../../Dati/webcams/Ecv/20261101/0500/Ecv0114.jpg"),  # weeks old: dropped
+    ])
+    eolie = _ingv_page("WebcamE.php", [
+        ("Spct", "../../Dati/webcams/Spct/20261121/0500/Spct0114.jpg"),
+        ("Vlv", "../../Dati/webcams/Vlv/20261121/0500/Vlv0114.jpg"),
+        ("Xyz", "javascript:alert(1)"),
+    ])
+    rows = cams.parse_ingv_cams([(ETNA_BASE, etna), (EOLIE_BASE, eolie)], INGV_NOW)
+    names = [r["name"] for r in rows]
+    # best view first, dead and stale cameras left out
+    assert names == [
+        "Etna, La Montagnola",
+        "Etna, La Montagnola (thermal)",
+        "Etna from Milo",
+        "Stromboli, Punta dei Corvi (thermal)",
+        "Vulcano from Lipari",
+    ]
+    first = rows[0]
+    assert first["img"] == "https://www.ct.ingv.it/Dati/webcams/Emov/20261121/0500/Emov0114.jpg"
+    assert first["page"] == "https://www.ct.ingv.it/sezioniesterne/webcam/Webcam.php?Vulcano=Emov"
+    assert first["src"] == "ingv" and abs(first["lat"] - 37.748) < 0.01
+
+    catalog = [
+        [211060, "Etna", "Italy", 37.748, 14.999, 3357, 2026, "Stratovolcano"],
+        [211040, "Stromboli", "Italy", 38.789, 15.213, 924, 2026, "Stratovolcano"],
+        [211050, "Vulcano", "Italy", 38.404, 14.962, 500, 1890, "Stratovolcano"],
+    ]
+    linked = cams.link_cams(catalog, rows)
+    assert [c["name"] for c in linked["gvp:211060"]][:2] == ["Etna, La Montagnola", "Etna, La Montagnola (thermal)"]
+    assert linked["gvp:211040"][0]["name"].startswith("Stromboli")
+    assert linked["gvp:211050"][0]["name"] == "Vulcano from Lipari"
