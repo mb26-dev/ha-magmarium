@@ -13,7 +13,7 @@
           "fire_radius_km": "Waldbrand-Radius um Zuhause"
         },
         "data_description": {
-          "sources": "MAGMA Indonesia: offizielle Warnstufen und VONA-Meldungen (Aschewolken) für Indonesien. Wochenbericht: weltweite Aktivität (Smithsonian / USGS). Offizielle Warnstufen: USGS (USA), Icelandic Met Office, JMA (Japan). Asche-SIGMETs: offizielle Aschegebiete für die Luftfahrt, weltweit. Erdbeben: USGS. Tsunami-Warnungen: NOAA (PTWC, NTWC) und BMKG InaTEWS.",
+          "sources": "MAGMA Indonesia: offizielle Warnstufen und VONA-Meldungen (Aschewolken) für Indonesien. Wochenbericht: weltweite Aktivität (Smithsonian / USGS). Offizielle Warnstufen: USGS (USA), Icelandic Met Office, JMA (Japan). Asche-SIGMETs: offizielle Aschegebiete für die Luftfahrt, weltweit. Erdbeben: USGS. Tsunami-Warnungen: NOAA (PTWC, NTWC) und BMKG InaTEWS. Italien: Warnstufen des Zivilschutzes, VONA-Meldungen des INGV (Ätna, Stromboli) und INGV-Erdbeben.",
           "watched_volcanoes": "Namen wie in den Quellen, z. B. Semeru, Merapi, Anak Krakatau, Lewotobi, Etna.",
           "places": "Zonen wie Zuhause oder deine Flughäfen. Jede bekommt einen Binärsensor, der angeht, wenn eine Aschewolke, ein offizielles Aschegebiet (SIGMET) oder eine simulierte Driftspur in den Radius kommt.",
           "ash_radius_km": "Abstand um jeden Ort, in km.",
