@@ -8,7 +8,7 @@ import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./
 import { defineMapCards } from "./magmarium-maps.js";
 import { ecoMode, setEco, reportSlow, onEcoChange, storedEco, perf } from "./magmarium-perf.js";
 
-const VERSION = "0.2.2b2";
+const VERSION = "0.2.2b3";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -98,7 +98,7 @@ const OFFICIAL_NAMES = {
 const officialsOf = (v) => (v.officials && v.officials.length ? v.officials : v.official ? [v.official] : []);
 /** quake event page: INGV for Italy, USGS for the rest */
 const quakeLinkName = (url) => (/ingv\.it/i.test(String(url || "")) ? "INGV event page" : "USGS event page");
-const CAM_SOURCES = { usgs: "USGS", geonet: "GeoNet", jma: "JMA", magma: "MAGMA Indonesia" };
+const CAM_SOURCES = { usgs: "USGS", geonet: "GeoNet", jma: "JMA", magma: "MAGMA Indonesia", ingv: "INGV" };
 const CAM_REFRESH_MS = 5 * 60 * 1000;
 
 const ICONS = {
@@ -924,7 +924,7 @@ class MagmariumCard extends HTMLElement {
     const bad = Object.entries(src).filter(([k, s]) => s.enabled && s.error && k !== "catalog");
     const updated = this._data?.updated ? rel(new Date(this._data.updated * 1000).toISOString()) : "";
     if (bad.length) {
-      const FEED_NAMES = { wind: "Wind data", usgs: "USGS", imo: "IMO", jma: "JMA", dpc: "Protezione Civile", ingv_vona: "INGV VONA", ingv_quakes: "INGV earthquakes", sigmet: "SIGMETs", quakes: "Earthquakes", wiki: "Wikipedia", cams: "Cameras", tsunami: "Tsunami", thermal: "NASA FIRMS", fires: "Wildfires" };
+      const FEED_NAMES = { wind: "Wind data", usgs: "USGS", imo: "IMO", jma: "JMA", dpc: "Protezione Civile", ingv_vona: "INGV VONA", ingv_quakes: "INGV earthquakes", ingv_cams: "INGV cameras", sigmet: "SIGMETs", quakes: "Earthquakes", wiki: "Wikipedia", cams: "Cameras", tsunami: "Tsunami", thermal: "NASA FIRMS", fires: "Wildfires" };
       const names = bad.map(([k]) => (k.startsWith("magma") ? "MAGMA" : FEED_NAMES[k] || "Weekly report"));
       this._legendSt.textContent = `${[...new Set(names)].join(", ")} not reachable · last data shown`;
       this._legendSt.classList.add("bad");
