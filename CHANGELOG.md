@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2b2 - 2026-11-21
+
+- Fix: 0.2.2b1 did not load ("name 'DPC_MINUTES' is not defined"), the new refresh intervals were not imported
+
 ## 0.2.2b1 - 2026-11-21
 
 - **Italy from the official Italian sources** (new data source "Italy", switched on for existing installations):
