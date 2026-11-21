@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2b3 - 2026-11-21
+
+- **Live cameras for Italy:** the surveillance cameras of the INGV Etna Observatory for Etna (La Montagnola, Monte Cagliato, Piedimonte, Catania, Nicolosi, Milo, Bronte, visible and thermal), Stromboli and Vulcano show up as live images in the info box and the compact volcano card. The image address changes with every picture, so the INGV camera pages are read every 10 minutes (part of the data source "Italy")
+
 ## 0.2.2b2 - 2026-11-21
 
 - Fix: 0.2.2b1 did not load ("name 'DPC_MINUTES' is not defined"), the new refresh intervals were not imported

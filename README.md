@@ -30,7 +30,7 @@ Magmarium started with Indonesia, but it covers every active volcano on Earth. W
 | **United States** (Alaska, Hawaii, Cascades, Yellowstone ...) | USGS Volcano Hazards Program: alert level and aviation colour code | USGS earthquakes, NOAA tsunami warnings (PTWC, NTWC), AVO live cameras |
 | **Iceland** | Icelandic Met Office (IMO): VONA notices and aviation colour code | |
 | **Japan** | Japan Meteorological Agency (JMA): volcanic warning levels | JMA live cameras |
-| **Italy** (Etna, Stromboli, Campi Flegrei, Vesuvius, Vulcano) | Italian Civil Protection (Dipartimento della Protezione Civile): national alert levels (green, yellow, orange, red). INGV Etna Observatory: VONA aviation notices for Etna and Stromboli | INGV earthquakes (small quakes near volcanoes, e.g. Campi Flegrei), official ash SIGMETs for European airspace |
+| **Italy** (Etna, Stromboli, Campi Flegrei, Vesuvius, Vulcano) | Italian Civil Protection (Dipartimento della Protezione Civile): national alert levels (green, yellow, orange, red). INGV Etna Observatory: VONA aviation notices for Etna and Stromboli | INGV live cameras (Etna, Stromboli, Vulcano), INGV earthquakes (small quakes near volcanoes, e.g. Campi Flegrei), official ash SIGMETs for European airspace |
 | **Everywhere else** (Philippines, Kamchatka, Andes, Central America, PNG, New Zealand ...) | Smithsonian / USGS Weekly Volcanic Activity Report | official ash SIGMETs worldwide, earthquakes M4.5+, tsunami warnings, GeoNet cameras in New Zealand |
 
 In Italy two official statements can exist for one volcano: the Civil Protection alert level (hazard on the ground) and the INGV VONA colour code (aviation). The globe shows the higher one and the info box lists both. Ischia, Pantelleria, Colli Albani, Lipari and Panarea have no Civil Protection levels yet; they show up from the weekly report.
@@ -387,7 +387,7 @@ A star on GitHub, a bug report or a screenshot of your dashboard helps just as m
 - Wildfire map tiles: [NASA GIBS](https://www.earthdata.nasa.gov/engage/open-data-services-software/earthdata-developer-portal/gibs-api) (Blue Marble shaded relief, VIIRS NOAA-20 corrected reflectance, coastlines)
 - Tsunami, wildfire and earthquake icons: designed for Magmarium by mb26-dev
 - Wikipedia links: [Wikidata](https://www.wikidata.org) (CC0)
-- Volcano cameras: [USGS Volcano Hazards Program AshCam](https://avo-volcview.wr.usgs.gov/ashcam-gui/webcam.html), [GeoNet / GNS Science](https://www.geonet.org.nz/volcano/cameras), [Japan Meteorological Agency](https://www.data.jma.go.jp/vois/data/obs/volcam/volcam.php), [MAGMA Indonesia](https://magma.esdm.go.id/v1/gunung-api/cctv)
+- Volcano cameras: [USGS Volcano Hazards Program AshCam](https://avo-volcview.wr.usgs.gov/ashcam-gui/webcam.html), [GeoNet / GNS Science](https://www.geonet.org.nz/volcano/cameras), [Japan Meteorological Agency](https://www.data.jma.go.jp/vois/data/obs/volcam/volcam.php), [MAGMA Indonesia](https://magma.esdm.go.id/v1/gunung-api/cctv), [INGV Osservatorio Etneo](https://www.ct.ingv.it/index.php/monitoraggio-e-sorveglianza/segnali-in-tempo-reale/video-sorveglianza-vulcanica-etna) (Etna, Stromboli, Vulcano)
 - Winds aloft: [Open-Meteo](https://open-meteo.com) (CC BY 4.0)
 - Earth imagery: NASA Earth Observatory, [Blue Marble Next Generation](https://science.nasa.gov/earth/earth-observatory/blue-marble-next-generation/) by Reto Stöckli and [Black Marble 2016](https://science.nasa.gov/earth/earth-observatory/earth-at-night/maps)
 - Volcano, lava and ash drawings are original artwork rendered in the card
