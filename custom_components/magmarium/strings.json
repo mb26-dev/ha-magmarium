@@ -13,7 +13,7 @@
           "fire_radius_km": "Wildfire radius around home"
         },
         "data_description": {
-          "sources": "MAGMA Indonesia: official alert levels and VONA notices (ash clouds) for Indonesia. Weekly report: worldwide activity (Smithsonian / USGS). Official alert levels: USGS (US), Icelandic Met Office, JMA (Japan). Ash SIGMETs: official volcanic ash areas for aviation, worldwide. Earthquakes: USGS. Tsunami warnings: NOAA (PTWC, NTWC) and BMKG InaTEWS.",
+          "sources": "MAGMA Indonesia: official alert levels and VONA notices (ash clouds) for Indonesia. Weekly report: worldwide activity (Smithsonian / USGS). Official alert levels: USGS (US), Icelandic Met Office, JMA (Japan). Ash SIGMETs: official volcanic ash areas for aviation, worldwide. Earthquakes: USGS. Tsunami warnings: NOAA (PTWC, NTWC) and BMKG InaTEWS. Italy: Civil Protection alert levels, INGV VONA notices (Etna, Stromboli) and INGV earthquakes.",
           "watched_volcanoes": "Names as used by the sources, e.g. Semeru, Merapi, Anak Krakatau, Lewotobi, Etna.",
           "places": "Zones such as Home or your airports. Each gets a binary sensor that turns on when an ash cloud, an official ash area (SIGMET) or a simulated drift track comes within the radius.",
           "ash_radius_km": "Distance around each place, in km.",

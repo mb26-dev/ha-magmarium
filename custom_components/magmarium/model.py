@@ -253,8 +253,10 @@ def build_volcanoes(
                 "period": w.get("period"),
             }
 
-    # ---- official alert levels outside Indonesia (USGS, Icelandic Met Office, JMA)
-    for o in official or []:
+    # ---- official alert levels outside Indonesia (USGS, Icelandic Met Office, JMA,
+    # Italian Civil Protection and INGV VONA)
+    official = sorted(official or [], key=lambda o: int(o.get("level") or 0), reverse=True)
+    for o in official:
         row = b.row_for_official(o)
         vol = b.existing(row) if row else None
         if vol is None and int(o.get("level") or 0) < 2:
@@ -263,6 +265,16 @@ def build_volcanoes(
             vol = b.resolve(o.get("name") or "", o.get("country") or "", o.get("lat"), o.get("lon"), row=row)
         _add_source(vol, o["source"])
         level = int(o.get("level") or 0)
+        # every official statement is kept for the info box (Italy: Civil Protection and VONA)
+        listed = vol.setdefault("officials", [])
+        if all(x["source"] != o["source"] for x in listed):
+            listed.append({
+                "source": o["source"],
+                "alert": o.get("alert"),
+                "time": o.get("time"),
+                "url": o.get("url"),
+                "level": level,
+            })
         # several official sources for one volcano are rare; the higher level wins
         if vol.get("official") and level < vol["level"]:
             continue

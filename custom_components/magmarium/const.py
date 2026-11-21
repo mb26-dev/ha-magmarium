@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "magmarium"
-VERSION = "0.2.1"
+VERSION = "0.2.2b1"
 
 CONF_SOURCES = "sources"
 CONF_WATCHED = "watched_volcanoes"
@@ -19,7 +19,8 @@ SOURCE_OFFICIAL = "official"
 SOURCE_SIGMET = "sigmet"
 SOURCE_QUAKES = "quakes"
 SOURCE_TSUNAMI = "tsunami"
-SOURCES = [SOURCE_MAGMA, SOURCE_GVP_WEEKLY, SOURCE_OFFICIAL, SOURCE_SIGMET, SOURCE_QUAKES, SOURCE_TSUNAMI]
+SOURCE_ITALY = "italy"
+SOURCES = [SOURCE_MAGMA, SOURCE_GVP_WEEKLY, SOURCE_OFFICIAL, SOURCE_ITALY, SOURCE_SIGMET, SOURCE_QUAKES, SOURCE_TSUNAMI]
 SOURCE_LABELS = {
     SOURCE_MAGMA: "MAGMA Indonesia (PVMBG)",
     SOURCE_GVP_WEEKLY: "Smithsonian / USGS Weekly Volcanic Activity Report",
@@ -27,6 +28,7 @@ SOURCE_LABELS = {
     SOURCE_SIGMET: "Volcanic ash SIGMETs (official ash areas for aviation)",
     SOURCE_QUAKES: "USGS earthquakes",
     SOURCE_TSUNAMI: "Tsunami warnings: NOAA (PTWC, NTWC) and BMKG InaTEWS",
+    SOURCE_ITALY: "Italy: Civil Protection alert levels, INGV VONA notices and INGV earthquakes",
 }
 DEFAULT_SOURCES = list(SOURCES)
 DEFAULT_WATCHED = ""
@@ -73,10 +75,16 @@ FEED_LABELS = {
     "jma": "JMA (Japan)",
     "sigmet": "Volcanic ash SIGMETs",
     "quakes": "USGS earthquakes",
+    "dpc": "Italian Civil Protection (alert levels)",
+    "ingv_vona": "INGV Etna Observatory (VONA)",
+    "ingv_quakes": "INGV earthquakes (Italy)",
 }
 # winds aloft for the ash drift simulation (Open-Meteo)
 WIND_MINUTES = 60
 OFFICIAL_MINUTES = 60
+DPC_MINUTES = 60  # Italian Civil Protection: levels change rarely
+INGV_VONA_MINUTES = 15
+INGV_QUAKE_MINUTES = 15
 SIGMET_MINUTES = 15
 QUAKE_MINUTES = 15  # full refresh: USGS M4.5+ of the week and M2.5+ of the day
 QUAKE_FAST_MINUTES = 2  # new quakes: USGS M2.5+ of the day (small file, updated by USGS every minute)

@@ -49,6 +49,7 @@ from .const import (
     SOURCE_GVP_WEEKLY,
     SOURCE_LABELS,
     SOURCE_MAGMA,
+    SOURCE_ITALY,
     SOURCE_OFFICIAL,
     SOURCE_QUAKES,
     SOURCE_SIGMET,
@@ -91,6 +92,16 @@ from .extra import (
     parse_sigmets,
     parse_usgs,
     parse_wikidata,
+)
+from .italy import (
+    DPC_URL,
+    INGV_VONA_URL,
+    ingv_quake_url,
+    keep_ingv_quake,
+    merge_quakes,
+    parse_dpc_levels,
+    parse_ingv_quakes,
+    parse_ingv_vona,
 )
 from .hazards import (
     BMKG_LATEST_URL,
@@ -156,6 +167,9 @@ FEEDS = {
     "usgs": (SOURCE_OFFICIAL, OFFICIAL_MINUTES),
     "imo": (SOURCE_OFFICIAL, OFFICIAL_MINUTES),
     "jma": (SOURCE_OFFICIAL, OFFICIAL_MINUTES),
+    "dpc": (SOURCE_ITALY, DPC_MINUTES),
+    "ingv_vona": (SOURCE_ITALY, INGV_VONA_MINUTES),
+    "ingv_quakes": (SOURCE_ITALY, INGV_QUAKE_MINUTES),
     "sigmet": (SOURCE_SIGMET, SIGMET_MINUTES),
     "quakes": (SOURCE_QUAKES, QUAKE_MINUTES),
     "wiki": (None, WIKI_DAYS * 24 * 60),
@@ -166,9 +180,12 @@ FEEDS = {
     "fires": (None, FIRE_MINUTES),
 }
 # feeds read in the main loop, in this order
-MAIN_FEEDS = ("catalog", "wiki", "magma_levels", "magma_vona", "gvp_weekly", "usgs", "imo", "jma", "sigmet", "quakes", "cams", "tsunami", "thermal", "fires")
+MAIN_FEEDS = (
+    "catalog", "wiki", "magma_levels", "magma_vona", "gvp_weekly", "usgs", "imo", "jma",
+    "dpc", "ingv_vona", "sigmet", "quakes", "ingv_quakes", "cams", "tsunami", "thermal", "fires",
+)
 # repair issues are raised per source, for the feeds of that source
-REPAIR_SOURCES = (SOURCE_MAGMA, SOURCE_GVP_WEEKLY, SOURCE_OFFICIAL, SOURCE_SIGMET, SOURCE_QUAKES)
+REPAIR_SOURCES = (SOURCE_MAGMA, SOURCE_GVP_WEEKLY, SOURCE_OFFICIAL, SOURCE_ITALY, SOURCE_SIGMET, SOURCE_QUAKES)
 
 
 class FeedError(Exception):
@@ -204,6 +221,7 @@ class MagmariumData:
         self.official: dict[str, list[dict[str, Any]]] = {}
         self.sigmets: list[dict[str, Any]] = []
         self.quakes: list[dict[str, Any]] = []
+        self.ingv_quakes: list[dict[str, Any]] = []
         self.wiki: dict[str, list[str]] = {}
         # official volcano cameras per provider
         self.cams: dict[str, list[dict[str, Any]]] = {}
@@ -247,6 +265,7 @@ class MagmariumData:
             self.official = stored.get("official") or {}
             self.sigmets = stored.get("sigmets") or []
             self.quakes = stored.get("quakes") or []
+            self.ingv_quakes = stored.get("ingv_quakes") or []
             self.wiki = stored.get("wiki") or {}
             self.cams = stored.get("cams") or {}
             self.tsunami = stored.get("tsunami") or []
@@ -269,6 +288,7 @@ class MagmariumData:
             "official": self.official,
             "sigmets": self.sigmets,
             "quakes": self.quakes,
+            "ingv_quakes": self.ingv_quakes,
             "wiki": self.wiki,
             "cams": self.cams,
             "tsunami": self.tsunami,
@@ -426,6 +446,20 @@ class MagmariumData:
             warning = await self._get(JMA_WARNING_URL)
             vlist = await self._get(JMA_LIST_URL)
             self.official["jma"] = await self.hass.async_add_executor_job(parse_jma, warning, vlist)
+        elif feed == "dpc":
+            text = await self._get(DPC_URL)
+            rows = await self.hass.async_add_executor_job(parse_dpc_levels, text)
+            if not rows:
+                raise FeedError("no alert levels found in the Civil Protection data")
+            self.official["dpc"] = rows
+        elif feed == "ingv_vona":
+            page = await self._get(INGV_VONA_URL)
+            self.official["ingv"] = await self.hass.async_add_executor_job(
+                parse_ingv_vona, page, datetime.now(timezone.utc)
+            )
+        elif feed == "ingv_quakes":
+            text = await self._get(ingv_quake_url(datetime.now(timezone.utc)))
+            self.ingv_quakes = await self.hass.async_add_executor_job(parse_ingv_quakes, text)
         elif feed == "sigmet":
             text = await self._get(SIGMET_URL)
             if not text.strip():
@@ -745,6 +779,9 @@ class MagmariumData:
         if SOURCE_OFFICIAL in self.sources:
             for key in ("usgs", "imo", "jma"):
                 official.extend(self.official.get(key) or [])
+        if SOURCE_ITALY in self.sources:
+            for key in ("dpc", "ingv"):
+                official.extend(self.official.get(key) or [])
         sigmets = (
             [s for s in self.sigmets if not s.get("to") or s["to"] >= now_iso]
             if SOURCE_SIGMET in self.sources
@@ -767,13 +804,16 @@ class MagmariumData:
             v["wiki"] = choose_wiki(self.wiki.get(str(v["number"])) if v.get("number") else None, v["name"], v.get("local_name"))
 
         # earthquakes of the last 7 days, linked to the nearest volcano within 30 km
+        # (Italy: INGV, small quakes only near a volcano; USGS copies of INGV quakes are dropped)
         quakes: list[dict[str, Any]] = []
-        if SOURCE_QUAKES in self.sources and self.quakes:
+        usgs_quakes = self.quakes if SOURCE_QUAKES in self.sources else []
+        ingv_quakes = self.ingv_quakes if SOURCE_ITALY in self.sources else []
+        if usgs_quakes or ingv_quakes:
             week = (now - timedelta(days=7)).isoformat()
-            recent = [q for q in self.quakes if q["time"] >= week]
+            recent = [q for q in merge_quakes(usgs_quakes, ingv_quakes) if q["time"] >= week]
             points = [(v["lat"], v["lon"], v.get("local_name") or v["name"], v["id"]) for v in volcanoes if v["lat"] is not None]
             points += [(r[2], r[3], r[0], f"gvp:{r[5]}") for r in result["catalog"]]
-            quakes = mark_volcanic(recent, points)
+            quakes = [q for q in mark_volcanic(recent, points) if keep_ingv_quake(q)]
             counts: dict[str, list[float]] = {}
             for q in quakes:
                 if q.get("volcano_key"):
@@ -994,6 +1034,7 @@ def _card_volcano(v: dict[str, Any]) -> dict[str, Any]:
         "sources": v.get("sources"),
         "wind": v.get("wind"),
         "official": v.get("official"),
+        "officials": v.get("officials") or [],
         "sigmets": v.get("sigmets") or [],
         "quakes_7d": v.get("quakes_7d") or 0,
         "quake_max": v.get("quake_max"),

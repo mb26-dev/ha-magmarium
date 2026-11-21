@@ -79,7 +79,7 @@ def _validate(user_input: dict[str, Any]) -> dict[str, str]:
 class MagmariumConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle the initial setup."""
 
-    VERSION = 3
+    VERSION = 4
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         await self.async_set_unique_id(DOMAIN)

@@ -77,6 +77,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 store[CONF_SOURCES] = list(dict.fromkeys([*store[CONF_SOURCES], "tsunami"]))
         hass.config_entries.async_update_entry(entry, data=data, options=options, version=3)
         _LOGGER.info("Magmarium settings migrated to version 3: tsunami warnings switched on")
+    if entry.version == 3:
+        data = {**entry.data}
+        options = {**entry.options}
+        for store in (data, options):
+            if CONF_SOURCES in store:
+                store[CONF_SOURCES] = list(dict.fromkeys([*store[CONF_SOURCES], "italy"]))
+        hass.config_entries.async_update_entry(entry, data=data, options=options, version=4)
+        _LOGGER.info("Magmarium settings migrated to version 4: Italian sources switched on")
     return True
 
 
