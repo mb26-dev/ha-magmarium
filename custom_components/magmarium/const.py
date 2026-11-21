@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "magmarium"
-VERSION = "0.2.2b2"
+VERSION = "0.2.2b3"
 
 CONF_SOURCES = "sources"
 CONF_WATCHED = "watched_volcanoes"
@@ -78,6 +78,7 @@ FEED_LABELS = {
     "dpc": "Italian Civil Protection (alert levels)",
     "ingv_vona": "INGV Etna Observatory (VONA)",
     "ingv_quakes": "INGV earthquakes (Italy)",
+    "ingv_cams": "INGV cameras (Etna, Stromboli, Vulcano)",
 }
 # winds aloft for the ash drift simulation (Open-Meteo)
 WIND_MINUTES = 60
@@ -85,6 +86,7 @@ OFFICIAL_MINUTES = 60
 DPC_MINUTES = 60  # Italian Civil Protection: levels change rarely
 INGV_VONA_MINUTES = 15
 INGV_QUAKE_MINUTES = 15
+INGV_CAMS_MINUTES = 10  # the image path changes with every picture
 SIGMET_MINUTES = 15
 QUAKE_MINUTES = 15  # full refresh: USGS M4.5+ of the week and M2.5+ of the day
 QUAKE_FAST_MINUTES = 2  # new quakes: USGS M2.5+ of the day (small file, updated by USGS every minute)

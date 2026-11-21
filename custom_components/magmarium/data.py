@@ -25,6 +25,7 @@ from .const import (
     BACKOFF_MINUTES,
     CAMS_MINUTES,
     DPC_MINUTES,
+    INGV_CAMS_MINUTES,
     INGV_QUAKE_MINUTES,
     INGV_VONA_MINUTES,
     CATALOG_DAYS,
@@ -72,8 +73,10 @@ from .cams import (
     JMA_CAMS_URL,
     MAGMA_CCTV_URL,
     USGS_CAMS_URL,
+    INGV_CAM_PAGES,
     geonet_cams,
     link_cams,
+    parse_ingv_cams,
     parse_jma_cams,
     parse_magma_cctv,
     parse_usgs_cams,
@@ -173,6 +176,7 @@ FEEDS = {
     "dpc": (SOURCE_ITALY, DPC_MINUTES),
     "ingv_vona": (SOURCE_ITALY, INGV_VONA_MINUTES),
     "ingv_quakes": (SOURCE_ITALY, INGV_QUAKE_MINUTES),
+    "ingv_cams": (SOURCE_ITALY, INGV_CAMS_MINUTES),
     "sigmet": (SOURCE_SIGMET, SIGMET_MINUTES),
     "quakes": (SOURCE_QUAKES, QUAKE_MINUTES),
     "wiki": (None, WIKI_DAYS * 24 * 60),
@@ -185,7 +189,7 @@ FEEDS = {
 # feeds read in the main loop, in this order
 MAIN_FEEDS = (
     "catalog", "wiki", "magma_levels", "magma_vona", "gvp_weekly", "usgs", "imo", "jma",
-    "dpc", "ingv_vona", "sigmet", "quakes", "ingv_quakes", "cams", "tsunami", "thermal", "fires",
+    "dpc", "ingv_vona", "sigmet", "quakes", "ingv_quakes", "cams", "ingv_cams", "tsunami", "thermal", "fires",
 )
 # repair issues are raised per source, for the feeds of that source
 REPAIR_SOURCES = (SOURCE_MAGMA, SOURCE_GVP_WEEKLY, SOURCE_OFFICIAL, SOURCE_ITALY, SOURCE_SIGMET, SOURCE_QUAKES)
@@ -474,6 +478,12 @@ class MagmariumData:
             self.quakes = await self.hass.async_add_executor_job(parse_quakes, texts)
         elif feed == "cams":
             await self._refresh_cams()
+        elif feed == "ingv_cams":
+            pages = [(url, await self._get(url)) for url in INGV_CAM_PAGES]
+            rows = await self.hass.async_add_executor_job(parse_ingv_cams, pages, time.time())
+            if not rows:
+                raise FeedError("no current camera image on the INGV pages")
+            self.cams["ingv"] = rows
         elif feed == "tsunami":
             await self._refresh_tsunami()
         elif feed == "thermal":
@@ -848,7 +858,8 @@ class MagmariumData:
         result["fires"] = fires
 
         # official volcano cameras
-        all_cams = [c for key in ("usgs", "jma", "magma") for c in self.cams.get(key) or []] + geonet_cams()
+        cam_keys = ("usgs", "jma", "magma", "ingv") if SOURCE_ITALY in self.sources else ("usgs", "jma", "magma")
+        all_cams = [c for key in cam_keys for c in self.cams.get(key) or []] + geonet_cams()
         self.cam_map = link_cams(self.catalog, all_cams)
         for v in volcanoes:
             v["cams"] = self.cam_map.get(v["id"]) or []

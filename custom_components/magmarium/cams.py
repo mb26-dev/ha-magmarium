@@ -7,16 +7,18 @@ Only cameras run by the volcano observatories themselves:
 - GeoNet (GNS Science, New Zealand): latest image of each volcano camera
 - Japan Meteorological Agency: volcano monitoring camera pages
 - MAGMA Indonesia (PVMBG): CCTV pages per volcano
+- INGV Osservatorio Etneo (Italy): surveillance cameras of Etna, Stromboli and Vulcano
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import html as html_lib
 import json
 import re
 from typing import Any
 
-from .parsing import build_index, fallback_row, haversine_km, match_catalog, normalize_name
+from .parsing import build_index, fallback_row, haversine_km, match_catalog, normalize_name, safe_url
 
 USGS_CAMS_URL = "https://avo-volcview.wr.usgs.gov/ashcam-api/webcamApi/webcams"
 USGS_CAM_PAGE = "https://avo-volcview.wr.usgs.gov/ashcam-gui/webcam.html?webcam={code}"
@@ -26,6 +28,34 @@ MAGMA_CCTV_URL = "https://magma.esdm.go.id/v1/gunung-api/cctv"
 MAGMA_CCTV_PAGE = "https://magma.esdm.go.id/v1/gunung-api/cctv/{code}"
 GEONET_IMAGE = "https://images.geonet.org.nz/volcano/cameras/latest/m-{code}.jpg"
 GEONET_PAGE = "https://www.geonet.org.nz/volcano/cameras/{code}"
+# INGV Osservatorio Etneo: one page per area with the newest image of every camera.
+# The image path changes with every picture, so the pages are read every few minutes.
+INGV_CAM_PAGES = [
+    "https://www.ct.ingv.it/sezioniesterne/webcam/WebcamEtna.php",
+    "https://www.ct.ingv.it/sezioniesterne/webcam/WebcamEolie.php",
+]
+# camera code: label (T = thermal, V = visible, H = high sensitivity), in the order shown
+INGV_CAM_NAMES = {
+    "Emov": "Etna, La Montagnola",
+    "Emot": "Etna, La Montagnola (thermal)",
+    "Epvh": "Etna from Piedimonte Etneo",
+    "Emct": "Etna from Monte Cagliato (thermal)",
+    "Ecv": "Etna from Catania",
+    "Env": "Etna from Nicolosi",
+    "Ent": "Etna from Nicolosi (thermal)",
+    "Ebt": "Etna from Bronte (thermal)",
+    "Emv": "Etna from Milo",
+    "Scv": "Stromboli SCV",
+    "Sct": "Stromboli SCT (thermal)",
+    "Spct": "Stromboli, Punta dei Corvi (thermal)",
+    "Spt": "Stromboli, Pizzo (thermal)",
+    "Vlv": "Vulcano from Lipari",
+    "Vlvh": "Vulcano from Lipari (high sensitivity)",
+    "Vvt": "Vulcano VVT (thermal)",
+}
+# the first letter of the camera code names the volcano: summit positions for the match
+INGV_CAM_VOLCANO = {"E": ("Etna", 37.748, 14.999), "S": ("Stromboli", 38.789, 15.213), "V": ("Vulcano", 38.404, 14.962)}
+INGV_CAM_MAX_AGE_S = 24 * 3600
 
 # GeoNet camera id, label, Smithsonian volcano number, position of the volcano (fallback match)
 GEONET_CAMS = [
@@ -49,6 +79,7 @@ SOURCE_NAMES = {
     "geonet": "GeoNet",
     "jma": "Japan Meteorological Agency",
     "magma": "MAGMA Indonesia",
+    "ingv": "INGV",
 }
 
 
@@ -166,6 +197,51 @@ def parse_magma_cctv(page: str) -> list[dict[str, Any]]:
     return out
 
 
+_INGV_CAM = re.compile(
+    r"""<a[^>]+href\s*=\s*["']([^"']+)["'][^>]*>\s*<img[^>]+src\s*=\s*["']([^"']+)["']""",
+    re.IGNORECASE,
+)
+_INGV_PATH = re.compile(r"/webcams/([A-Za-z]+)/(\d{8})/(\d{2})\d{2}/[^/]+\.jpe?g$", re.IGNORECASE)
+
+
+def parse_ingv_cams(pages: list[tuple[str, str]], now_ts: float) -> list[dict[str, Any]]:
+    """Newest image of every INGV Osservatorio Etneo camera; pages are (url, html).
+
+    Cameras without a current picture (the page then shows a placeholder) are left out.
+    The time is the hour of the picture folder, which is enough to drop dead cameras.
+    """
+    found: dict[str, dict[str, Any]] = {}
+    for base, page in pages:
+        for href, src in _INGV_CAM.findall(page):
+            img = safe_url(html_lib.unescape(src), base)
+            m = _INGV_PATH.search(img or "")
+            if not img or not m:
+                continue  # "Nowork.jpg": camera out of order
+            code = m.group(1)
+            code = code[:1].upper() + code[1:].lower()
+            volcano = INGV_CAM_VOLCANO.get(code[:1])
+            if volcano is None or code in found:
+                continue
+            try:
+                ts = datetime.strptime(m.group(2) + m.group(3), "%Y%m%d%H").replace(tzinfo=timezone.utc).timestamp()
+            except ValueError:
+                continue
+            if now_ts - ts > INGV_CAM_MAX_AGE_S:
+                continue
+            found[code] = {
+                "src": "ingv",
+                "number": None,
+                "lat": volcano[1],
+                "lon": volcano[2],
+                "name": INGV_CAM_NAMES.get(code, f"{volcano[0]} {code.upper()}"),
+                "img": img,
+                "page": safe_url(html_lib.unescape(href), base) or base,
+                "time": ts,
+            }
+    # the best views first (the card shows the first camera live)
+    return [found[k] for k in INGV_CAM_NAMES if k in found] + [c for k, c in found.items() if k not in INGV_CAM_NAMES]
+
+
 def link_cams(catalog: list[list[Any]], cams: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     """Cameras per volcano id (the ids of the volcano model: gvp:<number> or name:<name>)."""
     by_number = {row[0]: row for row in catalog if row and row[0]}
@@ -201,5 +277,5 @@ def link_cams(catalog: list[list[Any]], cams: list[dict[str, Any]]) -> dict[str,
             lst.append({k: cam[k] for k in ("src", "name", "img", "page", "time")})
     for lst in out.values():
         # cameras with a live image first, the freshest of those first
-        lst.sort(key=lambda c: (c["img"] is None, -(c["time"] or 0)))
+        lst.sort(key=lambda c: (c["img"] is None, -(c["time"] or 0) if c["src"] != "ingv" else 0))
     return out
