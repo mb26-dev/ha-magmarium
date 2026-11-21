@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2b1 - 2026-11-21
+
+- **Italy from the official Italian sources** (new data source "Italy", switched on for existing installations):
+  - **Civil Protection alert levels** (Dipartimento della Protezione Civile) for Campi Flegrei, Vesuvius, Stromboli, Vulcano and Etna: green, yellow, orange and red become Normal, Advisory, Watch and Warning
+  - **INGV VONA notices** of the Etna Observatory for Etna and Stromboli, with the aviation colour code
+  - When both exist the higher level is shown on the globe; the info box and the compact volcano card list both statements with their links
+  - **INGV earthquakes** in and around Italy: M2+ near a volcano (for example Campi Flegrei), M3+ elsewhere. A USGS quake that is the same event as an INGV quake is dropped, the event page links to INGV
+- README: the Italy row of the coverage table now names the official sources
+
 ## 0.2.1 - 2026-11-20
 
 Stable release with the eco mode for wall tablets from 0.2.1b1 and these security fixes from the HACS review:

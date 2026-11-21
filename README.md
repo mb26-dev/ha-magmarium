@@ -18,7 +18,7 @@
 
 Active volcanoes on a living globe for Home Assistant. Magmarium shows **every volcano with a current report** on a 3D Earth: coloured by its official alert level, glowing while it erupts, and with **ash plumes that rise and drift exactly as the latest official notice describes**, only while an ash cloud is actually reported.
 
-It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, adds **official alert levels from the USGS, the Icelandic Met Office and the Japan Meteorological Agency**, the **official volcanic ash areas for aviation (SIGMETs)** worldwide, **earthquakes** from the USGS, **tsunami warnings** from NOAA and BMKG and the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account. Optionally, with a free NASA FIRMS key, **satellite hotspots** show glowing lava at the summits and **wildfires** around your home burn on the globe and on a zoomable regional map.
+It starts with the best volcano data there is for Indonesia, the official alert levels and VONA aviation notices from **MAGMA Indonesia**, adds **official alert levels from the USGS, the Icelandic Met Office, the Japan Meteorological Agency and the Italian Civil Protection and INGV**, the **official volcanic ash areas for aviation (SIGMETs)** worldwide, **earthquakes** from the USGS, **tsunami warnings** from NOAA and BMKG and the whole world from the **Smithsonian / USGS Weekly Volcanic Activity Report**. No API key, no account. Optionally, with a free NASA FIRMS key, **satellite hotspots** show glowing lava at the summits and **wildfires** around your home burn on the globe and on a zoomable regional map.
 
 ## Worldwide, not only Indonesia
 
@@ -30,10 +30,10 @@ Magmarium started with Indonesia, but it covers every active volcano on Earth. W
 | **United States** (Alaska, Hawaii, Cascades, Yellowstone ...) | USGS Volcano Hazards Program: alert level and aviation colour code | USGS earthquakes, NOAA tsunami warnings (PTWC, NTWC), AVO live cameras |
 | **Iceland** | Icelandic Met Office (IMO): VONA notices and aviation colour code | |
 | **Japan** | Japan Meteorological Agency (JMA): volcanic warning levels | JMA live cameras |
-| **Italy** (Etna, Stromboli, Campi Flegrei ...) | Smithsonian / USGS Weekly Volcanic Activity Report | official ash SIGMETs for European airspace, earthquakes |
+| **Italy** (Etna, Stromboli, Campi Flegrei, Vesuvius, Vulcano) | Italian Civil Protection (Dipartimento della Protezione Civile): national alert levels (green, yellow, orange, red). INGV Etna Observatory: VONA aviation notices for Etna and Stromboli | INGV earthquakes (small quakes near volcanoes, e.g. Campi Flegrei), official ash SIGMETs for European airspace |
 | **Everywhere else** (Philippines, Kamchatka, Andes, Central America, PNG, New Zealand ...) | Smithsonian / USGS Weekly Volcanic Activity Report | official ash SIGMETs worldwide, earthquakes M4.5+, tsunami warnings, GeoNet cameras in New Zealand |
 
-Italy's own alert levels (INGV) are not read yet; Etna and Stromboli show up from the weekly report and the ash SIGMETs.
+In Italy two official statements can exist for one volcano: the Civil Protection alert level (hazard on the ground) and the INGV VONA colour code (aviation). The globe shows the higher one and the info box lists both. Ischia, Pantelleria, Colli Albani, Lipari and Panarea have no Civil Protection levels yet; they show up from the weekly report.
 
 ## Screenshots
 
@@ -106,7 +106,7 @@ Italy's own alert levels (INGV) are not read yet; Etna and Stromboli show up fro
 | Latest VONA | time of the newest VONA (timestamp) | volcano, aviation colour, notice text, ash height, link |
 | `<volcano>` | alert level of a watched volcano: normal, advisory, watch, warning | official alert (e.g. *Level III (Siaga)*), aviation colour, eruption, ash cloud, notice, distance |
 | Ash SIGMETs | valid volcanic ash SIGMETs worldwide | volcano, flight information region, height, validity, movement |
-| Earthquakes near volcanoes | USGS earthquakes of the last 7 days within 30 km of a volcano | magnitude, depth, distance, volcano |
+| Earthquakes near volcanoes | USGS (and in Italy INGV) earthquakes of the last 7 days within 30 km of a volcano | magnitude, depth, distance, volcano |
 | Tsunami alerts | tsunami warnings, watches and advisories in force | highest level, nearest distance from home, every bulletin with region, magnitude, sources and link |
 | Thermal anomalies (with FIRMS key) | volcanoes with satellite hotspots at the summit in the last 48 h | hotspots, radiative power (MW), satellite pass, distance |
 | Earthquakes near home | earthquakes within 2000 km of home in the last 7 days (USGS) | quakes of the last 24 h, strongest and nearest (24 h and 7 days), the 15 newest with magnitude, depth, distance and direction |
@@ -143,14 +143,14 @@ All settings are done in the UI and can be changed later under **Configure**:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| Data sources | all | MAGMA Indonesia: official alert levels and VONA notices for all Indonesian volcanoes. Weekly report: worldwide activity from the Smithsonian Global Volcanism Program and USGS. Official alert levels: USGS (US volcanoes), Icelandic Met Office, Japan Meteorological Agency. Ash SIGMETs: official volcanic ash areas for aviation. Earthquakes: USGS. Tsunami warnings: NOAA PTWC / NTWC and BMKG InaTEWS. |
+| Data sources | all | MAGMA Indonesia: official alert levels and VONA notices for all Indonesian volcanoes. Weekly report: worldwide activity from the Smithsonian Global Volcanism Program and USGS. Official alert levels: USGS (US volcanoes), Icelandic Met Office, Japan Meteorological Agency. Ash SIGMETs: official volcanic ash areas for aviation. Earthquakes: USGS. Tsunami warnings: NOAA PTWC / NTWC and BMKG InaTEWS. Italy: Civil Protection alert levels, INGV VONA notices (Etna, Stromboli) and INGV earthquakes. |
 | Volcanoes to watch | empty | Comma separated names, e.g. `Semeru, Merapi, Anak Krakatau, Lewotobi`. Each one gets its own sensor. |
 | Places to watch for ash | Home | Zones, for example your home and your airports. Each gets an "Ash near ..." sensor. |
 | Ash warning radius | 150 km | Distance around each place. |
 | NASA FIRMS map key | empty | Optional. A free key from [firms.modaps.eosdis.nasa.gov/api/map_key](https://firms.modaps.eosdis.nasa.gov/api/map_key/) switches on the satellite hotspots (VIIRS) at volcanoes with a raised alert level, an eruption or ash (checked every 3 hours) and the wildfires. |
 | Wildfire radius around home | 1500 km | Wildfires within this distance of your home location, checked every hour (needs the FIRMS key). 0 switches them off, 20000 covers the world. |
 
-Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), official alert levels every hour, ash SIGMETs every 15 minutes, earthquakes every 15 minutes with a quick check for new quakes every 2 minutes, tsunami bulletins every 5 minutes, satellite hotspots every 3 hours and wildfires every hour (with a FIRMS key), the volcano catalogue and the Wikipedia links once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
+Update intervals: VONA notices every 10 minutes, MAGMA alert levels every hour, the weekly report every 6 hours, winds aloft every hour (and right away when a new ash cloud or eruption appears, only for those volcanoes), official alert levels every hour (INGV VONA notices every 15 minutes), ash SIGMETs every 15 minutes, earthquakes every 15 minutes with a quick check for new quakes every 2 minutes, tsunami bulletins every 5 minutes, satellite hotspots every 3 hours and wildfires every hour (with a FIRMS key), the volcano catalogue and the Wikipedia links once a month. Every source has its own cache and backoff, so a source that is down never blocks the others, and restarts do not download anything again. The NASA Earth images (about 3 MB) are downloaded once; if [Orbitarium](https://github.com/mb26-dev/ha-orbitarium) is installed, its images are used and nothing is downloaded.
 
 ## The card
 
@@ -352,9 +352,9 @@ Pick the "Erupting volcanoes" and the "Tsunami alerts" sensors, a radius for eru
 
 | Shown on the globe | Comes from |
 | --- | --- |
-| Colour of the ring | Indonesia: official MAGMA alert level (Level I Normal, II Waspada, III Siaga, IV Awas). US volcanoes: USGS alert level and aviation colour code. Iceland: aviation colour code of the Icelandic Met Office. Japan: JMA alert level (levels 4 and 5 both show as Warning). Elsewhere: the weekly report (new eruptive activity = Watch, unrest or ongoing activity = Advisory). |
+| Colour of the ring | Indonesia: official MAGMA alert level (Level I Normal, II Waspada, III Siaga, IV Awas). US volcanoes: USGS alert level and aviation colour code. Iceland: aviation colour code of the Icelandic Met Office. Japan: JMA alert level (levels 4 and 5 both show as Warning). Italy: Civil Protection alert level or INGV VONA colour code, the higher one. Elsewhere: the weekly report (new eruptive activity = Watch, unrest or ongoing activity = Advisory). |
 | Grey dashed area | a valid volcanic ash SIGMET: the official ash area for aviation. A volcano named in it gets an ash plume moving in the SIGMET direction. |
-| Rings | USGS earthquakes of the last 7 days; orange within 30 km of a volcano. Small volcanic quakes, for example in Indonesia, are often not in this catalogue. |
+| Rings | USGS earthquakes of the last 7 days; orange within 30 km of a volcano. Small volcanic quakes, for example in Indonesia, are often not in this catalogue. In Italy the INGV catalogue is used: M2+ near a volcano, M3+ elsewhere. |
 | Coloured waves from a point | a tsunami bulletin in force (NOAA PTWC / NTWC, BMKG InaTEWS): red warning or threat, orange watch, yellow advisory, blue information statement. The waves only mark the event, they are not a forecast of the tsunami. |
 | Hot glow on the ground | satellite hotspots of the last 48 hours within 5 km of the summit (NASA FIRMS, VIIRS); brighter with more radiative power |
 | Flames and glowing embers | wildfires around home of the last 48 hours (NASA FIRMS, VIIRS): yellow under 8 MW, amber 8 to 30, orange 30 to 100, red above 100 MW. Older fires fade. Hotspots within 5 km of a volcano count as volcanic heat, not as wildfires. Clouds can hide fires, small or short fires can be missed. |
@@ -379,6 +379,7 @@ A star on GitHub, a bug report or a screenshot of your dashboard helps just as m
 - Volcano alert levels and VONA notices for Indonesia: [MAGMA Indonesia](https://magma.esdm.go.id), PVMBG / CVGHM, Geological Agency of Indonesia
 - Weekly Volcanic Activity Report and Volcanoes of the World: [Smithsonian Institution Global Volcanism Program](https://volcano.si.edu) and [USGS](https://www.usgs.gov/programs/VHP)
 - Official alert levels: [USGS Volcano Hazards Program](https://volcanoes.usgs.gov) (HANS), [Icelandic Met Office](https://en.vedur.is), [Japan Meteorological Agency](https://www.jma.go.jp)
+- Italy: alert levels of the [Dipartimento della Protezione Civile](https://mappe.protezionecivile.gov.it/it/mappe-e-dashboard-rischi/mappa-livelli-di-allerta-vulcani-italia/) (data from [pcm-dpc/DPC-Mappe](https://github.com/pcm-dpc/DPC-Mappe)), VONA notices of the [INGV Osservatorio Etneo](https://www.ct.ingv.it) and earthquakes of the [INGV](https://terremoti.ingv.it)
 - Volcanic ash SIGMETs: [AviationWeather.gov](https://aviationweather.gov) (NOAA Aviation Weather Center)
 - Earthquakes: [USGS Earthquake Hazards Program](https://earthquake.usgs.gov)
 - Tsunami warnings: [NOAA Tsunami Warning Centers](https://www.tsunami.gov) (PTWC, NTWC) and [BMKG InaTEWS](https://inatews.bmkg.go.id)
