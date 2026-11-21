@@ -8,7 +8,7 @@ import { LEVEL_COLORS, rgba, drawVolcano, drawPulse, AshPlume, Ejecta } from "./
 import { defineMapCards } from "./magmarium-maps.js";
 import { ecoMode, setEco, reportSlow, onEcoChange, storedEco, perf } from "./magmarium-perf.js";
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.2b1";
 const LEVEL_NAMES = { 0: "Unknown", 1: "Normal", 2: "Advisory", 3: "Watch", 4: "Warning" };
 const FILTERS = [
   ["all", "All"],
@@ -87,7 +87,17 @@ function quakeRgb(m) {
 /** wildfire colour by radiative power (MW) */
 const fireRgb = (mw) => (mw >= 100 ? "239,68,68" : mw >= 30 ? "249,115,22" : mw >= 8 ? "245,158,11" : "250,204,21");
 const REPLAY_HOURS_PER_SECOND = 12;
-const OFFICIAL_NAMES = { usgs: "USGS", imo: "Icelandic Met Office", jma: "Japan Meteorological Agency" };
+const OFFICIAL_NAMES = {
+  usgs: "USGS",
+  imo: "Icelandic Met Office",
+  jma: "Japan Meteorological Agency",
+  dpc: "Italian Civil Protection",
+  ingv: "INGV Etna Observatory",
+};
+/** every official statement of a volcano (Italy has two: Civil Protection and the INGV VONA) */
+const officialsOf = (v) => (v.officials && v.officials.length ? v.officials : v.official ? [v.official] : []);
+/** quake event page: INGV for Italy, USGS for the rest */
+const quakeLinkName = (url) => (/ingv\.it/i.test(String(url || "")) ? "INGV event page" : "USGS event page");
 const CAM_SOURCES = { usgs: "USGS", geonet: "GeoNet", jma: "JMA", magma: "MAGMA Indonesia" };
 const CAM_REFRESH_MS = 5 * 60 * 1000;
 
@@ -914,7 +924,7 @@ class MagmariumCard extends HTMLElement {
     const bad = Object.entries(src).filter(([k, s]) => s.enabled && s.error && k !== "catalog");
     const updated = this._data?.updated ? rel(new Date(this._data.updated * 1000).toISOString()) : "";
     if (bad.length) {
-      const FEED_NAMES = { wind: "Wind data", usgs: "USGS", imo: "IMO", jma: "JMA", sigmet: "SIGMETs", quakes: "Earthquakes", wiki: "Wikipedia", cams: "Cameras", tsunami: "Tsunami", thermal: "NASA FIRMS", fires: "Wildfires" };
+      const FEED_NAMES = { wind: "Wind data", usgs: "USGS", imo: "IMO", jma: "JMA", dpc: "Protezione Civile", ingv_vona: "INGV VONA", ingv_quakes: "INGV earthquakes", sigmet: "SIGMETs", quakes: "Earthquakes", wiki: "Wikipedia", cams: "Cameras", tsunami: "Tsunami", thermal: "NASA FIRMS", fires: "Wildfires" };
       const names = bad.map(([k]) => (k.startsWith("magma") ? "MAGMA" : FEED_NAMES[k] || "Weekly report"));
       this._legendSt.textContent = `${[...new Set(names)].join(", ")} not reachable · last data shown`;
       this._legendSt.classList.add("bad");
@@ -1227,8 +1237,7 @@ class MagmariumCard extends HTMLElement {
     if (v.color) badges.push(`<span class="badge soft">VONA ${esc(v.color)}</span>`);
     parts.push(`<div class="badges">${badges.join("")}</div>`);
 
-    if (v.official) {
-      const o = v.official;
+    for (const o of officialsOf(v)) {
       parts.push(`<div class="line"><span class="ic">🏛</span><span class="tx">${esc(o.alert || "")}<div class="muted">${esc(OFFICIAL_NAMES[o.source] || o.source)}${o.time ? ` · ${esc(rel(o.time))}` : ""}</div></span></div>`);
     }
     if (v.eruption) {
@@ -1287,7 +1296,7 @@ class MagmariumCard extends HTMLElement {
     if (n && n.url && n.kind === "vona") links.push(`<a href="${esc(safeUrl(n.url))}" target="_blank" rel="noopener">VONA notice</a>`);
     if (v.report) links.push(`<a href="${esc(safeUrl(v.report))}" target="_blank" rel="noopener">MAGMA report</a>`);
     if (v.weekly) links.push(`<a href="https://volcano.si.edu/reports_weekly.cfm" target="_blank" rel="noopener">Weekly report</a>`);
-    if (v.official && v.official.url) links.push(`<a href="${esc(safeUrl(v.official.url))}" target="_blank" rel="noopener">${esc(OFFICIAL_NAMES[v.official.source] || "Official notice")}</a>`);
+    for (const o of officialsOf(v)) if (o.url) links.push(`<a href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener">${esc(OFFICIAL_NAMES[o.source] || "Official notice")}</a>`);
     links.push(`<a href="${esc(safeUrl(wikiUrl(v.wiki, v.name)))}" target="_blank" rel="noopener">Wikipedia</a>`);
     if (v.number) links.push(`<a href="https://volcano.si.edu/volcano.cfm?vn=${encodeURIComponent(v.number)}" target="_blank" rel="noopener">Global Volcanism Program</a>`);
     if (links.length) parts.push(`<div class="links">${links.join("")}</div>`);
@@ -1334,7 +1343,7 @@ class MagmariumCard extends HTMLElement {
     lines.push(`<div class="line"><span class="ic">〰</span><span class="tx">Magnitude ${q.mag}${q.depth != null ? ` · depth ${q.depth} km` : ""}<div class="muted">${esc(utc(q.time))} (${esc(rel(q.time))})</div></span></div>`);
     if (q.volcano) lines.push(`<div class="line"><span class="ic">⛰</span><span class="tx">Within 30 km of ${esc(q.volcano)}</span></div>`);
     if (dist != null) lines.push(`<div class="line"><span class="ic">📍</span><span class="tx">${fmtInt(Math.round(dist))} km from home</span></div>`);
-    if (q.url) lines.push(`<div class="links"><a href="${esc(safeUrl(q.url))}" target="_blank" rel="noopener">USGS event page</a></div>`);
+    if (q.url) lines.push(`<div class="links"><a href="${esc(safeUrl(q.url))}" target="_blank" rel="noopener">${quakeLinkName(q.url)}</a></div>`);
     this._infoShell("Earthquake", q.place || "", lines.join(""));
   }
 
@@ -2779,7 +2788,12 @@ class MagmariumVolcanoCard extends HTMLElement {
     if (v.eruption) badges.push(`<span class="badge hot">ERUPTING</span>`);
     if (v.color) badges.push(`<span class="badge soft">VONA ${esc(v.color)}</span>`);
     parts.push(`<div class="head${nav}"><h3>${esc(this._config.name || v.local || v.name)}</h3><div class="where">${esc(where)}${v.local && v.local !== v.name ? ` · GVP: ${esc(v.name)}` : ""}</div><div class="badges">${badges.join("")}</div></div>`);
-    if (v.alert || (v.official && v.official.alert)) {
+    const offs = officialsOf(v);
+    if (offs.length > 1) {
+      for (const o of offs) {
+        parts.push(`<div class="line"><span class="ic">🏛</span><span class="tx">${esc(o.alert || "")}<div class="muted">${esc(OFFICIAL_NAMES[o.source] || o.source)}${o.time ? ` · ${esc(rel(o.time))}` : ""}</div></span></div>`);
+      }
+    } else if (v.alert || (v.official && v.official.alert)) {
       const o = v.official;
       parts.push(`<div class="line"><span class="ic">🏛</span><span class="tx">${esc(v.alert || o.alert)}${o ? `<div class="muted">${esc(OFFICIAL_NAMES[o.source] || o.source)}${o.time ? ` · ${esc(rel(o.time))}` : ""}</div>` : ""}</span></div>`);
     }
@@ -2830,7 +2844,7 @@ class MagmariumVolcanoCard extends HTMLElement {
       const n = v.notice;
       if (n && n.url && n.kind === "vona") links.push(`<a href="${esc(safeUrl(n.url))}" target="_blank" rel="noopener">VONA notice</a>`);
       if (v.report) links.push(`<a href="${esc(safeUrl(v.report))}" target="_blank" rel="noopener">MAGMA report</a>`);
-      if (v.official && v.official.url) links.push(`<a href="${esc(safeUrl(v.official.url))}" target="_blank" rel="noopener">${esc(OFFICIAL_NAMES[v.official.source] || "Official notice")}</a>`);
+      for (const o of officialsOf(v)) if (o.url) links.push(`<a href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener">${esc(OFFICIAL_NAMES[o.source] || "Official notice")}</a>`);
       links.push(`<a href="${esc(safeUrl(wikiUrl(v.wiki, v.name)))}" target="_blank" rel="noopener">Wikipedia</a>`);
       if (v.number) links.push(`<a href="https://volcano.si.edu/volcano.cfm?vn=${encodeURIComponent(v.number)}" target="_blank" rel="noopener">GVP</a>`);
       parts.push(`<div class="links">${links.join("")}</div>`);

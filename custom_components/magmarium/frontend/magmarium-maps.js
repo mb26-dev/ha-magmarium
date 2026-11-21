@@ -1190,7 +1190,7 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
         <div>${kmText(s.km)} km ${compass(s.brg)} of ${esc(this.homeName())}${near ? ` · ${Math.round(near.d)} km from ${esc(near.p.name)}` : ""}</div>
         <div class="m">depth ${s.depth != null ? `${Math.round(s.depth)} km` : "unknown"}${s.volcano ? ` · near the volcano ${esc(s.volcano)}` : ""}</div>
         <div class="m">${esc(this.time(s.ms))} (${ago(s.ms)})</div>
-        ${s.url ? `<div class="m"><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">USGS event page ↗</a></div>` : ""}`;
+        ${s.url ? `<div class="m"><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${/ingv\.it/i.test(s.url) ? "INGV" : "USGS"} event page ↗</a></div>` : ""}`;
     }
 
     renderText(top) {
@@ -1246,7 +1246,7 @@ export function defineMapCards({ VERSION, loadData, refreshMs }) {
           }).join("")}</div>`
           : `<div class="none">🌏 No earthquakes within ${r} km in the last ${days} days.</div>`;
       }
-      html += `<div class="foot"><span>Earthquakes: <a href="https://earthquake.usgs.gov/earthquakes/map/" target="_blank" rel="noopener">USGS</a> (M4.5+ for 7 days, M2.5+ for 24 h)</span><span>Tsunami: NOAA, BMKG</span></div>`;
+      html += `<div class="foot"><span>Earthquakes: <a href="https://earthquake.usgs.gov/earthquakes/map/" target="_blank" rel="noopener">USGS</a> (M4.5+ for 7 days, M2.5+ for 24 h), <a href="https://terremoti.ingv.it/" target="_blank" rel="noopener">INGV</a> for Italy</span><span>Tsunami: NOAA, BMKG</span></div>`;
       return html;
     }
   }
