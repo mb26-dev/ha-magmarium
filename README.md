@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
+  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Default-41BDF5.svg" alt="HACS Default"></a>
   <img src="https://img.shields.io/github/v/release/mb26-dev/ha-magmarium?include_prereleases" alt="Release">
   <img src="https://img.shields.io/badge/Home%20Assistant-2025.1%2B-blue" alt="Home Assistant">
   <img src="https://img.shields.io/github/license/mb26-dev/ha-magmarium" alt="License">
@@ -122,16 +122,26 @@ The integration is translated into English and German.
 
 ### HACS (recommended)
 
+Magmarium is available in the HACS default store.
+
 1. Open **HACS** in Home Assistant, search for **Magmarium** and download it, or use this button:
 
    [![Open your Home Assistant instance and open Magmarium in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mb26-dev&repository=ha-magmarium&category=integration)
-
-   If HACS does not find it yet, add it once as a custom repository: HACS → three dots → **Custom repositories** → `https://github.com/mb26-dev/ha-magmarium`, type **Integration**.
 
 2. Restart Home Assistant
 3. **Settings → Devices & services → Add integration → Magmarium**, or use this button:
 
    [![Open your Home Assistant instance and start setting up Magmarium.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=magmarium)
+
+<details>
+<summary>Not showing up in HACS yet? Add it as a custom repository</summary>
+
+1. HACS → three dots → **Custom repositories** → add `https://github.com/mb26-dev/ha-magmarium`, type **Integration**.
+2. Download **Magmarium** and restart Home Assistant.
+
+</details>
+
+If you added this repository as a custom repository before, you can remove that entry; the installed integration and its settings stay as they are.
 
 ### Manual
 
