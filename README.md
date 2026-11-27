@@ -8,9 +8,9 @@
 
 <p align="center">
   <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Default-41BDF5.svg" alt="HACS Default"></a>
-  <img src="https://img.shields.io/github/v/release/mb26-dev/ha-magmarium?include_prereleases" alt="Release">
+  <a href="https://github.com/mb26-dev/ha-magmarium/releases"><img src="https://img.shields.io/badge/release-v0.2.2b3-orange" alt="Release v0.2.2b3"></a>
   <img src="https://img.shields.io/badge/Home%20Assistant-2025.1%2B-blue" alt="Home Assistant">
-  <img src="https://img.shields.io/github/license/mb26-dev/ha-magmarium" alt="License">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License MIT">
   <a href="https://ko-fi.com/mb26dev"><img src="https://img.shields.io/badge/Ko--fi-Buy%20me%20a%20coffee-FF5E5B?logo=ko-fi&logoColor=white" alt="Buy me a coffee on Ko-fi"></a>
 </p>
 
